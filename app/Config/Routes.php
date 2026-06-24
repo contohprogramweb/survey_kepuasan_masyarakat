@@ -175,3 +175,19 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api', 'filter' => 'api
 
 $routes->set404Override('Errors::notFound');
 $routes->set500Override('Errors::serverError');
+
+// =============================================================================
+// QUEUE MONITORING ROUTES (Admin Only)
+// =============================================================================
+
+$routes->group('admin/queue', ['namespace' => 'App\\Controllers\\Admin', 'filter' => 'auth'], function ($routes) {
+    $routes->get('/', 'QueueController::index');
+    $routes->get('stats', 'QueueController::stats');
+    $routes->post('pause/(:segment)', 'QueueController::pause/$1');
+    $routes->post('resume/(:segment)', 'QueueController::resume/$1');
+    $routes->post('retry/(:segment)', 'QueueController::retry/$1');
+    $routes->post('retry/all', 'QueueController::retryAll');
+    $routes->get('failed-jobs', 'QueueController::failedJobs');
+    $routes->get('job-detail/(:segment)', 'QueueController::jobDetail/$1');
+    $routes->delete('clear/(:segment)', 'QueueController::clear/$1');
+});
