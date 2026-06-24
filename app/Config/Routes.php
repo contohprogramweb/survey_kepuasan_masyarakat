@@ -22,8 +22,12 @@ $routes->get('/', 'PublicController\LandingController::index');
 // Language switcher
 $routes->get('language/(:alpha)', 'PublicController\LandingController::setLanguage/$1');
 
-// Public Dashboard Transparansi
-$routes->get('dashboard', 'PublicController\LandingController::dashboard');
+// Public Dashboard Transparansi (F-20, UC-20) - Read-only, SEO optimized
+$routes->get('dashboard', 'PublicController\PublicDashboardController::index');
+$routes->get('public/dashboard/data', 'PublicController\PublicDashboardController::getData');
+
+// Old dashboard route (keep for backward compatibility or remove)
+// $routes->get('dashboard', 'PublicController\LandingController::dashboard');
 
 // Public survey pages
 $routes->group('survei', ['namespace' => 'App\Controllers\PublicController'], function ($routes) {
