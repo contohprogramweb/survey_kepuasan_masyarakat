@@ -71,6 +71,17 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin', 'filter' => 'au
     // Dashboard
     $routes->get('/', 'Dashboard::index');
     
+    // Kuesioner Management (Modul Manajemen Kuesioner - F-04, UC-05)
+    $routes->get('kuesioner', 'KuesionerController::index');
+    $routes->get('kuesioner/data', 'KuesionerController::data');
+    $routes->get('kuesioner/(:num)', 'KuesionerController::show/$1');
+    $routes->get('kuesioner/(:num)/edit', 'KuesionerController::edit/$1');
+    $routes->post('kuesioner/update/(:num)', 'KuesionerController::update/$1');
+    $routes->post('kuesioner/(:num)/toggle-status', 'KuesionerController::toggleStatus/$1');
+    $routes->delete('kuesioner/(:num)', 'KuesionerController::destroy/$1');
+    $routes->get('kuesioner/preview', 'KuesionerController::preview');
+    $routes->post('kuesioner/reorder', 'KuesionerController::reorder');
+
     // User Management
     $routes->resource('users', ['controller' => 'UserController']);
     $routes->post('users/(:num)/toggle-status', 'UserController::toggleStatus/$1');
