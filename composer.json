@@ -17,7 +17,6 @@
         "phpoffice/phpspreadsheet": "^2.0"
     },
     "require-dev": {
-        "codeigniter4/devkit": "^1.1",
         "phpunit/phpunit": "^10.5",
         "fakerphp/faker": "^1.23",
         "mikey179/vfsstream": "^1.6"
@@ -52,6 +51,11 @@
         "sort-packages": true,
         "allow-plugins": {
             "php-http/discovery": true
+        },
+        "policy": {
+            "advisories": {
+                "block": false
+            }
         }
     },
     "minimum-stability": "stable",

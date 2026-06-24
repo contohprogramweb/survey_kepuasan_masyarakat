@@ -2,96 +2,31 @@
 
 namespace Config;
 
-use CodeIgniter\Config\BaseConfig;
-use CodeIgniter\HTTP\RequestInterface;
-use CodeIgniter\HTTP\ResponseInterface;
-use Psr\Log\LoggerInterface;
+use CodeIgniter\Config\BaseService;
 
-class Services extends BaseConfig
+/**
+ * Services Configuration file.
+ *
+ * Services are simply other classes/libraries that the system uses
+ * to do its job. This is used by CodeIgniter to allow the core of the
+ * framework to be swapped out easily without affecting the usage within
+ * the rest of your application.
+ *
+ * This file holds any application-specific services, or service overrides
+ * that you might need. An example has been included with the general
+ * method format you should use for your service methods. For more examples,
+ * see the core Services file at system/Config/Services.php.
+ */
+class Services extends BaseService
 {
-    /**
-     * Service Container untuk Dependency Injection
+    /*
+     * public static function example($getShared = true)
+     * {
+     *     if ($getShared) {
+     *         return static::getSharedInstance('example');
+     *     }
+     *
+     *     return new \CodeIgniter\Example();
+     * }
      */
-    public static function container(bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('container');
-        }
-
-        return new \App\Services\Container();
-    }
-
-    /**
-     * Queue Service untuk Redis Queue
-     */
-    public static function queue(bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('queue');
-        }
-
-        $config = config('Queue');
-        return new \App\Services\QueueService($config);
-    }
-
-    /**
-     * OAuth2 Service untuk autentikasi eksternal
-     */
-    public static function oauth2(bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('oauth2');
-        }
-
-        $config = config('OAuth2');
-        return new \App\Services\OAuth2Service($config);
-    }
-
-    /**
-     * MFA Service untuk Multi-Factor Authentication
-     */
-    public static function mfa(bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('mfa');
-        }
-
-        return new \App\Services\MFAService();
-    }
-
-    /**
-     * Consent Service untuk UU PDP Compliance
-     */
-    public static function consent(bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('consent');
-        }
-
-        return new \App\Services\ConsentService();
-    }
-
-    /**
-     * RBAC Service untuk Role-Based Access Control
-     */
-    public static function rbac(bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('rbac');
-        }
-
-        return new \App\Services\RBACService();
-    }
-
-    /**
-     * Audit Service untuk logging aktivitas
-     */
-    public static function audit(bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('audit');
-        }
-
-        return new \App\Services\AuditService();
-    }
 }
