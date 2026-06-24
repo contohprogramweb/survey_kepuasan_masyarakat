@@ -4,7 +4,6 @@
 __pycache__/
 *.o
 *.obj
-*.class
 *.exe
 *.dll
 *.so
@@ -14,68 +13,33 @@ __pycache__/
 # Dependencies
 vendor/
 node_modules/
-*.egg-info/
-.eggs/
-build/
-dist/
-downloads/
-eggs/
-parts/
-sdist/
-develop-eggs/
-.installed.cfg
-lib/
-lib64/
-
-# Virtual environments
-venv/
-.venv/
-env/
-ENV/
-.envrc
+composer.lock
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
 
-# Environment variables
+# Environment
 .env
 .env.local
-.env.*
-!.env.example
+*.env.*
 
 # Editors
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
-nbproject/
 
-# Testing
-.coverage
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Coverage
 coverage/
 htmlcov/
-.pytest_cache/
-.hypothesis/
-.tox/
-.nox/
-mypy_cache/
-.dmypy.json
-dmypy.json
+.coverage
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Icon?
-Thumbs.db
-*:*
+# Build directories
+dist/
+build/
+target/
 ```
