@@ -4,16 +4,17 @@
 __pycache__/
 *.o
 *.obj
-dist/
-build/
-target/
+*.exe
+*.dll
+*.so
+*.class
+*.out
 
 # Dependencies
-.venv/
-venv/
-node_modules/
 vendor/
+node_modules/
 composer.lock
+*.lock
 
 # Logs and temp files
 *.log
@@ -29,22 +30,34 @@ composer.lock
 # Editors
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
+*.swp
+*.swo
 
 # OS generated files
 .DS_Store
 Thumbs.db
 
-# Cache directories
-.cache/
-.mypy_cache/
-.pytest_cache/
+# Build and distribution
+dist/
+build/
+target/
+*.tar*
+*.zip
+*.gz
+*.rar
+*.7z
+
+# Testing
 .coverage
 coverage/
 htmlcov/
 
-# Backup files
-*.bak
-*.backup
+# PHP specific
+*.php~
+phpunit.xml
+phpunit.xml.dist
+
+# Laravel/CodeIgniter specific (if applicable)
+storage/
+bootstrap/cache/
 ```

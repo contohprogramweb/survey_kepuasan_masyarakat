@@ -96,4 +96,184 @@ class SurveiModel extends Model
             'average_per_unsur' => $avgQuery
         ];
     }
+
+    // =========================================================================
+    // Survey Element (Unsur) Management Methods
+    // =========================================================================
+
+    /**
+     * Get all survey elements
+     */
+    public function getAllElements(): array
+    {
+        $db = \Config\Database::connect();
+        $query = $db->table('tb_kuesioner')
+            ->select('*')
+            ->orderBy('urutan', 'ASC')
+            ->get();
+        
+        return $query->getResultArray();
+    }
+
+    /**
+     * Get active survey elements
+     */
+    public function getActiveElements(): array
+    {
+        $db = \Config\Database::connect();
+        $query = $db->table('tb_kuesioner')
+            ->select('id_kuesioner, unsur_code, nama_unsur, deskripsi, bobot')
+            ->where('is_active', 1)
+            ->orderBy('urutan', 'ASC')
+            ->get();
+        
+        return $query->getResultArray();
+    }
+
+    /**
+     * Get element by ID
+     */
+    public function getElementById(int $id): ?array
+    {
+        $db = \Config\Database::connect();
+        $query = $db->table('tb_kuesioner')
+            ->where('id_kuesioner', $id)
+            ->get();
+        
+        return $query->getRowArray();
+    }
+
+    /**
+     * Insert new element
+     */
+    public function insertElement(array $data): int
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('tb_kuesioner');
+        $builder->insert($data);
+        return $db->insertID();
+    }
+
+    /**
+     * Update element
+     */
+    public function updateElement(int $id, array $data): bool
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('tb_kuesioner');
+        return $builder->update($data, ['id_kuesioner' => $id]);
+    }
+
+    /**
+     * Delete element
+     */
+    public function deleteElement(int $id): bool
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('tb_kuesioner');
+        return $builder->delete(['id_kuesioner' => $id]);
+    }
+
+    /**
+     * Check if element has questions
+     */
+    public function hasQuestions(int $elementId): bool
+    {
+        $db = \Config\Database::connect();
+        $query = $db->table('tb_pertanyaan')
+            ->where('id_kuesioner', $elementId);
+        
+        $result = $query->countAllResults();
+        return $result > 0;
+    }
+
+    // =========================================================================
+    // Survey Question (Pertanyaan) Management Methods
+    // =========================================================================
+
+    /**
+     * Get all survey questions with element info
+     */
+    public function getAllQuestions(): array
+    {
+        $db = \Config\Database::connect();
+        $query = $db->table('tb_pertanyaan p')
+            ->select('p.*, k.unsur_code, k.nama_unsur as nama_unsur')
+            ->join('tb_kuesioner k', 'k.id_kuesioner = p.id_kuesioner', 'left')
+            ->orderBy('p.urutan', 'ASC')
+            ->get();
+        
+        return $query->getResultArray();
+    }
+
+    /**
+     * Get question by ID
+     */
+    public function getQuestionById(int $id): ?array
+    {
+        $db = \Config\Database::connect();
+        $query = $db->table('tb_pertanyaan')
+            ->where('id_pertanyaan', $id)
+            ->get();
+        
+        return $query->getRowArray();
+    }
+
+    /**
+     * Get questions by element
+     */
+    public function getQuestionsByElement(int $elementId): array
+    {
+        $db = \Config\Database::connect();
+        $query = $db->table('tb_pertanyaan')
+            ->where('id_kuesioner', $elementId)
+            ->orderBy('urutan', 'ASC')
+            ->get();
+        
+        return $query->getResultArray();
+    }
+
+    /**
+     * Insert new question
+     */
+    public function insertQuestion(array $data): int
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('tb_pertanyaan');
+        $builder->insert($data);
+        return $db->insertID();
+    }
+
+    /**
+     * Update question
+     */
+    public function updateQuestion(int $id, array $data): bool
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('tb_pertanyaan');
+        return $builder->update($data, ['id_pertanyaan' => $id]);
+    }
+
+    /**
+     * Delete question
+     */
+    public function deleteQuestion(int $id): bool
+    {
+        $db = \Config\Database::connect();
+        $builder = $db->table('tb_pertanyaan');
+        return $builder->delete(['id_pertanyaan' => $id]);
+    }
+
+    /**
+     * Check if question has responses
+     */
+    public function hasResponses(int $questionId): bool
+    {
+        $db = \Config\Database::connect();
+        $query = $db->table('tb_survei_jawaban')
+            ->where('id_kuesioner', $questionId);
+        
+        $result = $query->countAllResults();
+        return $result > 0;
+    }
 }
