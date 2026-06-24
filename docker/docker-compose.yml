@@ -1,110 +1,269 @@
 version: '3.8'
 
+# =============================================================================
+# Docker Compose untuk Aplikasi IKM v2.0.0
+# Environment: Development
+# =============================================================================
+
 services:
   # =============================================================================
-  # Web Application (Nginx + PHP-FPM)
+  # App Service: PHP 8.2-FPM + Nginx (Development dengan Volume Mount)
   # =============================================================================
-  app:
+  app-service:
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile
-    container_name: ikm_app
+    container_name: ikm_app_service
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - ./:/var/www/html:cached
-      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+      # Mount source code untuk development (hot reload)
+      - ..:/var/www/html:cached
+      # Mount configuration files
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+      # Mount writable directories
+      - ./writable/cache:/var/www/html/writable/cache
+      - ./writable/logs:/var/www/html/writable/logs
+      - ./writable/session:/var/www/html/writable/session
+      - ./writable/uploads:/var/www/html/writable/uploads
+      # Xdebug log
+      - xdebug_logs:/var/log/xdebug
     networks:
       - ikm_network
     depends_on:
-      - mysql
-      - redis
+      db-service:
+        condition: service_healthy
+      redis-service:
+        condition: service_healthy
     environment:
-      - APP_ENV=${APP_ENV:-development}
-      - DB_HOST=mysql
+      - APP_ENV=development
+      - APP_DEBUG=true
+      - DB_HOST=db-service
       - DB_PORT=3306
       - DB_DATABASE=${DB_DATABASE:-ikm_db}
       - DB_USERNAME=${DB_USERNAME:-root}
-      - DB_PASSWORD=${DB_PASSWORD:-secret}
-      - REDIS_HOST=redis
+      - DB_PASSWORD=${DB_PASSWORD:-secret123}
+      - REDIS_HOST=redis-service
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - XDEBUG_ENABLED=1
+      - XDEBUG_MODE=develop,debug
     ports:
       - "${APP_PORT:-8080}:80"
       - "${APP_SSL_PORT:-8443}:443"
+      - "${XDEBUG_PORT:-9003}:9003"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # =============================================================================
-  # MySQL Database dengan Partitioning Support
+  # Web Service: Nginx Reverse Proxy (Opsional, jika ingin pisah dari app)
   # =============================================================================
-  mysql:
+  web-service:
+    image: nginx:1.24-alpine
+    container_name: ikm_web_service
+    restart: unless-stopped
+    volumes:
+      - ./nginx-proxy.conf:/etc/nginx/nginx.conf:ro
+      - ../public:/var/www/html/public:ro
+      - ./nginx-logs:/var/log/nginx
+    networks:
+      - ikm_network
+    depends_on:
+      - app-service
+    ports:
+      - "${WEB_PORT:-80}:80"
+      - "${WEB_SSL_PORT:-443}:443"
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # =============================================================================
+  # Database Service: MySQL 8.0 dengan Partitioning Support
+  # =============================================================================
+  db-service:
     image: mysql:8.0
-    container_name: ikm_mysql
+    container_name: ikm_db_service
     restart: unless-stopped
     command: >
       --default-authentication-plugin=mysql_native_password
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
-      --innodb-buffer-pool-size=256M
-      --innodb-log-file-size=64M
+      --innodb-buffer-pool-size=512M
+      --innodb-log-file-size=128M
       --innodb-flush-log-at-trx-commit=2
       --innodb-flush-method=O_DIRECT
-      --max-connections=200
-      --query-cache-size=64M
+      --max-connections=300
+      --query-cache-size=128M
       --query-cache-type=1
+      --innodb-file-per-table=1
+      --innodb-default-row-format=DYNAMIC
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret123}
       MYSQL_DATABASE: ${DB_DATABASE:-ikm_db}
       MYSQL_USER: ${DB_USER:-ikm_user}
-      MYSQL_PASSWORD: ${DB_USER_PASSWORD:-secret}
+      MYSQL_PASSWORD: ${DB_USER_PASSWORD:-secret123}
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./docker/init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./mysql-logs:/var/log/mysql
     networks:
       - ikm_network
     ports:
       - "${DB_PORT:-3306}:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret123}"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
+    cap_add:
+      - SYS_NICE
 
   # =============================================================================
-  # Redis (Queue & Cache)
+  # Redis Service: Redis 7.x (Cache, Queue, Session)
   # =============================================================================
-  redis:
+  redis-service:
     image: redis:7-alpine
-    container_name: ikm_redis
+    container_name: ikm_redis_service
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
     volumes:
       - redis_data:/data
+      - ./redis-logs:/var/log/redis
     networks:
       - ikm_network
     ports:
       - "${REDIS_PORT:-6379}:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD:-}", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
   # =============================================================================
-  # Prometheus untuk Monitoring
+  # Queue Worker Service: Background Jobs Processor (Scalable)
+  # =============================================================================
+  queue-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ikm_queue_worker
+    restart: unless-stopped
+    command: >
+      sh -c "
+        sleep 10 &&
+        php spark queue:work --daemon
+      "
+    working_dir: /var/www/html
+    volumes:
+      - ..:/var/www/html:cached
+      - ./writable/logs:/var/www/html/writable/logs
+    networks:
+      - ikm_network
+    depends_on:
+      redis-service:
+        condition: service_healthy
+      db-service:
+        condition: service_healthy
+    environment:
+      - APP_ENV=development
+      - REDIS_HOST=redis-service
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - DB_HOST=db-service
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-ikm_db}
+      - DB_USERNAME=${DB_USERNAME:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-secret123}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "queue:work"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # =============================================================================
+  # Scheduler Service: Cron Jobs Alternative
+  # =============================================================================
+  scheduler:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ikm_scheduler
+    restart: unless-stopped
+    command: >
+      sh -c "
+        while true; do
+          php spark scheduler:run;
+          sleep 60;
+        done
+      "
+    working_dir: /var/www/html
+    volumes:
+      - ..:/var/www/html:cached
+      - ./writable/logs:/var/www/html/writable/logs
+    networks:
+      - ikm_network
+    depends_on:
+      redis-service:
+        condition: service_healthy
+      db-service:
+        condition: service_healthy
+    environment:
+      - APP_ENV=development
+      - DB_HOST=db-service
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-ikm_db}
+      - DB_USERNAME=${DB_USERNAME:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-secret123}
+      - REDIS_HOST=redis-service
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "scheduler:run"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # =============================================================================
+  # Prometheus: Monitoring & Alerting
   # =============================================================================
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.47.0
     container_name: ikm_prometheus
     restart: unless-stopped
     volumes:
-      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -113,77 +272,76 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
     networks:
       - ikm_network
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
-      - app
+      - app-service
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # =============================================================================
-  # Grafana untuk Dashboard Monitoring
+  # Grafana: Dashboard Visualization
   # =============================================================================
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.1.0
     container_name: ikm_grafana
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
       GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
+      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_PORT:-3000}
+      GF_LOG_LEVEL: info
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - ikm_network
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     depends_on:
       - prometheus
-
-  # =============================================================================
-  # Queue Worker (Untuk Background Jobs)
-  # =============================================================================
-  worker:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: ikm_worker
-    restart: unless-stopped
-    command: php spark queue:work --daemon
-    working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html:cached
-    networks:
-      - ikm_network
-    depends_on:
-      - redis
-      - mysql
-    environment:
-      - APP_ENV=${APP_ENV:-development}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 # =============================================================================
-# Networks
+# Networks Configuration
 # =============================================================================
 networks:
   ikm_network:
     driver: bridge
     ipam:
+      driver: default
       config:
         - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
 
 # =============================================================================
-# Volumes
+# Volumes Configuration
 # =============================================================================
 volumes:
   mysql_data:
     driver: local
+    name: ikm_mysql_data
   redis_data:
     driver: local
+    name: ikm_redis_data
   prometheus_data:
     driver: local
+    name: ikm_prometheus_data
   grafana_data:
     driver: local
+    name: ikm_grafana_data
+  xdebug_logs:
+    driver: local
+    name: ikm_xdebug_logs
