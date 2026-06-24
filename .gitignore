@@ -1,1 +1,50 @@
-(empty)
+```
+# Dependencies
+vendor/
+node_modules/
+composer.lock
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+*.cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build/compiled
+build/
+dist/
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
+
+# Tests
+.coverage
+coverage/
+htmlcov/
+
+# Temporary
+*.tmp
+*.temp
+*~
+```
