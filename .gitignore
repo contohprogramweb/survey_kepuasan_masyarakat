@@ -14,57 +14,34 @@ __pycache__/
 # Dependencies
 vendor/
 node_modules/
-.npm/
-.yarn/
-bower_components/
-
-# Build and distribution
-dist/
-build/
-target/
-release/
-compile/
+composer.lock
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
 *.swo
-*.bak
-*.~
-*~
 
-# Environment variables
+# Environment
 .env
 .env.local
 .env.*
-!.env.example
 
-# Editors and IDEs
+# Editors
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
-.DS_Store
-Thumbs.db
-
-# Coverage and testing
-coverage/
-htmlcov/
-.coverage
-*.coverage
-.pytest_cache/
-.mypy_cache/
-.jscs_cache/
-.nyc_output/
 
 # OS generated files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Icon?
 Thumbs.db
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Build directories
+dist/
+build/
+target/
 ```

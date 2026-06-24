@@ -26,11 +26,11 @@ $routes->get('language/(:alpha)', 'PublicController\LandingController::setLangua
 $routes->get('dashboard', 'PublicController\LandingController::dashboard');
 
 // Public survey pages
-$routes->group('survei', ['namespace' => 'App\Controllers\Publik'], function ($routes) {
+$routes->group('survei', ['namespace' => 'App\Controllers\PublicController'], function ($routes) {
     $routes->get('/', 'SurveiController::index');
-    $routes->get('(:segment)', 'SurveiController::detail/$1');
-    $routes->post('(:segment)/respond', 'SurveiController::submit/$1');
-    $routes->get('(:segment)/consent', 'SurveiController::consent/$1');
+    $routes->get('index/(:num)/(:num)', 'SurveiController::index/$1/$2');
+    $routes->post('submit', 'SurveiController::submit');
+    $routes->get('thank-you/(:num)', 'SurveiController::thankYou/$1');
 });
 
 // Health check & Metrics
