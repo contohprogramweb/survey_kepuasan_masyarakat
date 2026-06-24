@@ -4,19 +4,16 @@
 __pycache__/
 *.o
 *.obj
-*.class
-*.exe
-*.dll
-*.so
-*.a
-*.out
+dist/
+build/
+target/
 
 # Dependencies
-vendor/
+.venv/
+venv/
 node_modules/
-.env
-.env.local
-*.env.*
+vendor/
+composer.lock
 
 # Logs and temp files
 *.log
@@ -24,21 +21,36 @@ node_modules/
 *.swp
 *.swo
 
+# Environment
+.env
+.env.local
+.env.*
+
 # Editors
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
 
 # OS generated files
 .DS_Store
 Thumbs.db
 
-# Coverage reports
+# Cache directories
+.cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
 coverage/
 htmlcov/
-.coverage
 
-# Build directories (if present)
-dist/
-build/
-target/
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
 ```
