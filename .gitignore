@@ -1,1 +1,50 @@
-Nothing needs to be added to the .gitignore file based on the provided changes. The only file added is a PHP model file (`app/Models/InstansiModel.php`), which is source code and should not be ignored. There are no build artifacts, dependencies, temporary files, or other items in the change list that warrant being added to the .gitignore.
+```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+dist/
+build/
+target/
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+vendor/
+composer.lock
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Cache directories
+.cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Backup files
+*.bak
+*.backup
+```
