@@ -5,27 +5,19 @@ namespace Config;
 use CodeIgniter\Config\BaseConfig;
 
 /**
- * Konfigurasi Queue System dengan Redis
+ * Konfigurasi Queue System dengan Database
  */
 class Queue extends BaseConfig
 {
     /**
      * Default queue connection
      */
-    public string $default = 'redis';
+    public string $default = 'database';
 
     /**
      * Queue connections
      */
     public array $connections = [
-        'redis' => [
-            'driver' => 'redis',
-            'connection' => 'default',
-            'queue' => 'default',
-            'retry_after' => 300,
-            'block_for' => 5,
-            'after_commit' => false,
-        ],
         'database' => [
             'driver' => 'database',
             'table' => 'jobs',

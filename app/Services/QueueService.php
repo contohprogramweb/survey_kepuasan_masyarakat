@@ -2,19 +2,20 @@
 
 namespace App\Services;
 
-use Predis\Client as RedisClient;
 use Exception;
 use Config\Queue as QueueConfig;
+use CodeIgniter\Database\BaseConnection;
 
 /**
  * QueueService
  * 
- * Service untuk mengelola Redis Queue dengan multi-queue support
+ * Service untuk mengelola Database Queue dengan multi-queue support
  * Mendukung queue: ikm-calculation, notification, backup, report, cleanup
+ * Menggunakan database sebagai pengganti Redis untuk penyimpanan queue
  */
 class QueueService
 {
-    protected RedisClient $redis;
+    protected BaseConnection $db;
     protected QueueConfig $config;
     protected string $prefix;
 
@@ -33,23 +34,7 @@ class QueueService
     {
         $this->config = $config ?? config('Queue');
         $this->prefix = $this->config->prefix ?? 'ikm_queue_';
-        
-        $redisConfig = config('Redis') ?? (object)[
-            'scheme' => 'tcp',
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'password' => null,
-            'database' => 0,
-        ];
-
-        $this->redis = new RedisClient([
-            'scheme' => $redisConfig->scheme ?? 'tcp',
-            'host' => $redisConfig->host ?? '127.0.0.1',
-            'port' => $redisConfig->port ?? 6379,
-            'password' => $redisConfig->password ?? null,
-            'database' => $redisConfig->database ?? 0,
-            'timeout' => 5.0,
-        ]);
+        $this->db = \Config\Database::connect();
     }
 
     /**
@@ -67,26 +52,22 @@ class QueueService
         }
 
         try {
-            $fullQueueName = $this->prefix . $queueName;
-            
             $job = [
                 'job_id' => uniqid('job_', true),
                 'queue' => $queueName,
-                'payload' => $jobData,
+                'payload' => json_encode($jobData, JSON_UNESCAPED_UNICODE),
                 'created_at' => date('Y-m-d H:i:s'),
                 'status' => 'pending',
                 'attempts' => 0,
                 'max_attempts' => 3,
+                'available_at' => date('Y-m-d H:i:s'),
             ];
 
-            // Push ke Redis list (RPUSH untuk FIFO)
-            $this->redis->rpush($fullQueueName, json_encode($job, JSON_UNESCAPED_UNICODE));
+            // Insert ke database table jobs
+            $this->db->table('tb_queue_jobs')->insert($job);
             
-            // Update statistik queue
+            // Update statistik counter
             $this->incrementCounter($queueName . ':total_pushed');
-            
-            // Persist ke database sebagai fallback
-            $this->persistToDatabase($job, $queueName);
 
             log_message('info', "[QueueService] Job {$job['job_id']} dipush ke queue {$queueName}");
             return true;
@@ -109,16 +90,33 @@ class QueueService
         }
 
         try {
-            $fullQueueName = $this->prefix . $queueName;
-            $jobData = $this->redis->lpop($fullQueueName);
+            // Ambil job tertua yang pending dan available
+            $jobRow = $this->db->table('tb_queue_jobs')
+                ->where('queue_name', $queueName)
+                ->where('status', 'pending')
+                ->where('available_at <=', date('Y-m-d H:i:s'))
+                ->orderBy('id', 'ASC')
+                ->limit(1)
+                ->get()
+                ->getRowArray();
 
-            if ($jobData) {
-                $job = json_decode($jobData, true);
-                if ($job) {
-                    // Set status processing
-                    $this->setJobStatus($job['job_id'], 'processing', $queueName);
-                    return $job;
-                }
+            if ($jobRow) {
+                // Update status ke processing
+                $this->db->table('tb_queue_jobs')
+                    ->where('id', $jobRow['id'])
+                    ->update([
+                        'status' => 'processing',
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+
+                return [
+                    'job_id' => $jobRow['job_id'],
+                    'queue' => $jobRow['queue_name'],
+                    'payload' => json_decode($jobRow['payload'], true),
+                    'attempts' => $jobRow['attempts'],
+                    'max_attempts' => $jobRow['max_attempts'],
+                    'created_at' => $jobRow['created_at'],
+                ];
             }
 
             return null;
@@ -130,6 +128,7 @@ class QueueService
 
     /**
      * Block dan pop job dari queue (untuk worker daemon)
+     * Menggunakan polling dengan interval tertentu
      *
      * @param string $queueName Nama queue
      * @param int $timeout Timeout dalam detik
@@ -137,28 +136,18 @@ class QueueService
      */
     public function blpop(string $queueName, int $timeout = 5): ?array
     {
-        if (!in_array($queueName, $this->queues)) {
-            return null;
-        }
-
-        try {
-            $fullQueueName = $this->prefix . $queueName;
-            $result = $this->redis->blpop($fullQueueName, $timeout);
-
-            if ($result && is_array($result) && count($result) >= 2) {
-                $jobData = $result[1];
-                $job = json_decode($jobData, true);
-                if ($job) {
-                    $this->setJobStatus($job['job_id'], 'processing', $queueName);
-                    return $job;
-                }
+        $startTime = time();
+        
+        while ((time() - $startTime) < $timeout) {
+            $job = $this->pop($queueName);
+            if ($job !== null) {
+                return $job;
             }
-
-            return null;
-        } catch (Exception $e) {
-            log_message('error', "[QueueService] Failed to blpop job: " . $e->getMessage());
-            return null;
+            // Wait sebelum retry
+            usleep(500000); // 500ms
         }
+        
+        return null;
     }
 
     /**
@@ -197,14 +186,14 @@ class QueueService
             $this->setJobStatus($jobId, 'failed', $queueName, ['error' => $errorMessage, 'attempts' => $attempts]);
             $this->incrementCounter($queueName . ':total_failed');
             
-            // Simpan ke failed jobs queue untuk retry
-            $this->redis->rpush($this->prefix . 'failed_jobs', json_encode([
+            // Simpan ke failed jobs table untuk retry
+            $this->db->table('tb_failed_jobs')->insert([
                 'job_id' => $jobId,
-                'queue' => $queueName,
+                'queue_name' => $queueName,
                 'error' => $errorMessage,
                 'failed_at' => date('Y-m-d H:i:s'),
                 'attempts' => $attempts,
-            ]));
+            ]);
 
             log_message('error', "[QueueService] Job {$jobId} failed: {$errorMessage}");
             return true;
@@ -224,22 +213,24 @@ class QueueService
     {
         try {
             // Cari job di failed_jobs
-            $failedJobs = $this->redis->lrange($this->prefix . 'failed_jobs', 0, -1);
+            $failedJob = $this->db->table('tb_failed_jobs')
+                ->where('job_id', $jobId)
+                ->get()
+                ->getRowArray();
             
-            foreach ($failedJobs as $index => $jobData) {
-                $job = json_decode($jobData, true);
-                if ($job && $job['job_id'] === $jobId) {
-                    // Hapus dari failed_jobs
-                    $this->redis->lrem($this->prefix . 'failed_jobs', 1, $jobData);
-                    
-                    // Re-push ke queue asal
-                    $queueName = $job['queue'];
-                    if (in_array($queueName, $this->queues)) {
-                        return $this->push($queueName, [
-                            'original_job_id' => $jobId,
-                            'retry_count' => ($job['attempts'] ?? 0) + 1,
-                        ]);
-                    }
+            if ($failedJob) {
+                // Hapus dari failed_jobs
+                $this->db->table('tb_failed_jobs')
+                    ->where('job_id', $jobId)
+                    ->delete();
+                
+                // Re-push ke queue asal
+                $queueName = $failedJob['queue_name'];
+                if (in_array($queueName, $this->queues)) {
+                    return $this->push($queueName, [
+                        'original_job_id' => $jobId,
+                        'retry_count' => ($failedJob['attempts'] ?? 0) + 1,
+                    ]);
                 }
             }
 
@@ -263,15 +254,35 @@ class QueueService
         }
 
         try {
-            $fullQueueName = $this->prefix . $queueName;
+            $pending = $this->db->table('tb_queue_jobs')
+                ->where('queue_name', $queueName)
+                ->where('status', 'pending')
+                ->countAllResults();
+            
+            $processing = $this->db->table('tb_queue_jobs')
+                ->where('queue_name', $queueName)
+                ->where('status', 'processing')
+                ->countAllResults();
+            
+            $completed = $this->db->table('tb_queue_jobs')
+                ->where('queue_name', $queueName)
+                ->where('status', 'completed')
+                ->countAllResults();
+            
+            $failed = $this->db->table('tb_queue_jobs')
+                ->where('queue_name', $queueName)
+                ->where('status', 'failed')
+                ->countAllResults();
+            
+            $totalPushed = (int)$this->getCounter($queueName . ':total_pushed');
             
             return [
                 'queue_name' => $queueName,
-                'pending' => (int)$this->redis->llen($fullQueueName),
-                'processing' => (int)$this->getCounter($queueName . ':processing'),
-                'completed' => (int)$this->getCounter($queueName . ':total_completed'),
-                'failed' => (int)$this->getCounter($queueName . ':total_failed'),
-                'total_pushed' => (int)$this->getCounter($queueName . ':total_pushed'),
+                'pending' => (int)$pending,
+                'processing' => (int)$processing,
+                'completed' => (int)$completed,
+                'failed' => (int)$failed,
+                'total_pushed' => $totalPushed,
             ];
         } catch (Exception $e) {
             log_message('error', "[QueueService] Failed to get stats: " . $e->getMessage());
@@ -292,15 +303,16 @@ class QueueService
         }
         
         // Tambahkan info failed jobs
+        $failedCount = $this->db->table('tb_failed_jobs')->countAllResults();
         $stats['failed_jobs'] = [
-            'count' => (int)$this->redis->llen($this->prefix . 'failed_jobs'),
+            'count' => (int)$failedCount,
         ];
 
         return $stats;
     }
 
     /**
-     * Pause queue (dengan flag Redis)
+     * Pause queue (dengan flag di database)
      *
      * @param string $queueName Nama queue
      * @return bool
@@ -308,7 +320,11 @@ class QueueService
     public function pause(string $queueName): bool
     {
         try {
-            $this->redis->set($this->prefix . "paused:{$queueName}", '1');
+            $this->db->table('tb_queue_settings')->replace([
+                'queue_name' => $queueName,
+                'is_paused' => 1,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
             log_message('info', "[QueueService] Queue {$queueName} paused");
             return true;
         } catch (Exception $e) {
@@ -326,7 +342,11 @@ class QueueService
     public function resume(string $queueName): bool
     {
         try {
-            $this->redis->del($this->prefix . "paused:{$queueName}");
+            $this->db->table('tb_queue_settings')->replace([
+                'queue_name' => $queueName,
+                'is_paused' => 0,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
             log_message('info', "[QueueService] Queue {$queueName} resumed");
             return true;
         } catch (Exception $e) {
@@ -344,31 +364,29 @@ class QueueService
     public function isPaused(string $queueName): bool
     {
         try {
-            return (bool)$this->redis->get($this->prefix . "paused:{$queueName}");
+            $setting = $this->db->table('tb_queue_settings')
+                ->where('queue_name', $queueName)
+                ->get()
+                ->getRowArray();
+            return $setting && $setting['is_paused'] == 1;
         } catch (Exception $e) {
             return false;
         }
     }
 
     /**
-     * Get worker status (dari Redis)
+     * Get worker status (dari database)
      *
      * @return array Status worker aktif
      */
     public function getWorkerStatus(): array
     {
         try {
-            $workers = [];
-            $workerKeys = $this->redis->keys($this->prefix . 'worker:*');
-            
-            foreach ($workerKeys as $key) {
-                $data = $this->redis->get($key);
-                if ($data) {
-                    $workers[] = json_decode($data, true);
-                }
-            }
-
-            return $workers;
+            return $this->db->table('tb_workers')
+                ->where('status', 'active')
+                ->where('last_heartbeat >=', date('Y-m-d H:i:s', strtotime('-2 minutes')))
+                ->get()
+                ->getResultArray();
         } catch (Exception $e) {
             return [];
         }
@@ -384,18 +402,15 @@ class QueueService
     public function registerWorker(string $workerId, string $queueName): void
     {
         try {
-            $workerData = [
+            $this->db->table('tb_workers')->replace([
                 'worker_id' => $workerId,
-                'queue' => $queueName,
+                'queue_name' => $queueName,
                 'pid' => getmypid(),
                 'started_at' => date('Y-m-d H:i:s'),
                 'last_heartbeat' => date('Y-m-d H:i:s'),
                 'memory_usage' => memory_get_usage(true),
                 'status' => 'active',
-            ];
-
-            $key = $this->prefix . "worker:{$workerId}";
-            $this->redis->setex($key, 60, json_encode($workerData)); // TTL 60 detik
+            ]);
         } catch (Exception $e) {
             log_message('error', "[QueueService] Failed to register worker: " . $e->getMessage());
         }
@@ -411,17 +426,13 @@ class QueueService
     public function updateWorkerHeartbeat(string $workerId, string $currentJob = ''): void
     {
         try {
-            $key = $this->prefix . "worker:{$workerId}";
-            $data = $this->redis->get($key);
-            
-            if ($data) {
-                $workerData = json_decode($data, true);
-                $workerData['last_heartbeat'] = date('Y-m-d H:i:s');
-                $workerData['current_job'] = $currentJob;
-                $workerData['memory_usage'] = memory_get_usage(true);
-                
-                $this->redis->setex($key, 60, json_encode($workerData));
-            }
+            $this->db->table('tb_workers')
+                ->where('worker_id', $workerId)
+                ->update([
+                    'last_heartbeat' => date('Y-m-d H:i:s'),
+                    'current_job' => $currentJob,
+                    'memory_usage' => memory_get_usage(true),
+                ]);
         } catch (Exception $e) {
             log_message('error', "[QueueService] Failed to update worker heartbeat: " . $e->getMessage());
         }
@@ -436,28 +447,36 @@ class QueueService
     public function unregisterWorker(string $workerId): void
     {
         try {
-            $key = $this->prefix . "worker:{$workerId}";
-            $this->redis->del($key);
+            $this->db->table('tb_workers')
+                ->where('worker_id', $workerId)
+                ->delete();
         } catch (Exception $e) {
             log_message('error', "[QueueService] Failed to unregister worker: " . $e->getMessage());
         }
     }
 
     /**
-     * Increment counter di Redis
+     * Increment counter di database
      */
     protected function incrementCounter(string $key): void
     {
-        $this->redis->incr($this->prefix . $key);
+        $this->db->table('tb_queue_counters')->replace([
+            'counter_key' => $this->prefix . $key,
+            'value' => $this->getCounter($key) + 1,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
     }
 
     /**
-     * Get counter value dari Redis
+     * Get counter value dari database
      */
     protected function getCounter(string $key): int
     {
-        $value = $this->redis->get($this->prefix . $key);
-        return $value ? (int)$value : 0;
+        $row = $this->db->table('tb_queue_counters')
+            ->where('counter_key', $this->prefix . $key)
+            ->get()
+            ->getRowArray();
+        return $row ? (int)$row['value'] : 0;
     }
 
     /**
@@ -465,8 +484,6 @@ class QueueService
      */
     protected function setJobStatus(string $jobId, string $status, string $queueName, array $result = []): void
     {
-        $db = \Config\Database::connect();
-        
         $data = [
             'status' => $status,
             'updated_at' => date('Y-m-d H:i:s'),
@@ -477,30 +494,9 @@ class QueueService
             $data['result'] = !empty($result) ? json_encode($result, JSON_UNESCAPED_UNICODE) : null;
         }
 
-        $db->table('tb_queue_jobs')
-            ->where('payload LIKE', "%\"job_id\":\"{$jobId}\"%")
+        $this->db->table('tb_queue_jobs')
+            ->where('job_id', $jobId)
             ->update($data);
-    }
-
-    /**
-     * Persist job ke database
-     */
-    protected function persistToDatabase(array $job, string $queueName): void
-    {
-        $db = \Config\Database::connect();
-
-        $data = [
-            'queue_name' => $queueName,
-            'job_class' => $job['queue'] . '-job',
-            'payload' => json_encode($job['payload'], JSON_UNESCAPED_UNICODE),
-            'status' => 'pending',
-            'attempts' => 0,
-            'max_attempts' => $job['max_attempts'],
-            'available_at' => date('Y-m-d H:i:s'),
-            'created_at' => date('Y-m-d H:i:s'),
-        ];
-
-        $db->table('tb_queue_jobs')->insert($data);
     }
 
     /**
@@ -516,8 +512,10 @@ class QueueService
         }
 
         try {
-            $fullQueueName = $this->prefix . $queueName;
-            $this->redis->del($fullQueueName);
+            $this->db->table('tb_queue_jobs')
+                ->where('queue_name', $queueName)
+                ->where('status', 'pending')
+                ->delete();
             log_message('info', "[QueueService] Queue {$queueName} cleared");
             return true;
         } catch (Exception $e) {
