@@ -16,8 +16,14 @@ use CodeIgniter\Router\RouteCollection;
 // PUBLIC ROUTES (Tidak memerlukan autentikasi)
 // =============================================================================
 
-// Home page
-$routes->get('/', 'Home::index');
+// Home page - Landing Page Publik
+$routes->get('/', 'PublicController\LandingController::index');
+
+// Language switcher
+$routes->get('language/(:alpha)', 'PublicController\LandingController::setLanguage/$1');
+
+// Public Dashboard Transparansi
+$routes->get('dashboard', 'PublicController\LandingController::dashboard');
 
 // Public survey pages
 $routes->group('survei', ['namespace' => 'App\Controllers\Publik'], function ($routes) {
