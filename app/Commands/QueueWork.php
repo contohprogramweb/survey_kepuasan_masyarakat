@@ -10,14 +10,14 @@ use App\Jobs\KalkulasiIKMJob;
 /**
  * Queue Work Command
  * 
- * Daemon worker untuk memproses jobs dari Redis queue
+ * Daemon worker untuk memproses jobs dari database queue
  * Usage: php spark queue:work [queue_name] [--daemon]
  */
 class QueueWork extends BaseCommand
 {
     protected $group = 'Queue';
     protected $name = 'queue:work';
-    protected $description = 'Menjalankan worker untuk memproses jobs dari queue';
+    protected $description = 'Menjalankan worker untuk memproses jobs dari database queue';
     protected $usage = 'queue:work [queue_name] [--daemon]';
     protected $arguments = [
         'queue_name' => 'Nama queue yang akan diproses (default: ikm-calculation)',
@@ -71,7 +71,7 @@ class QueueWork extends BaseCommand
                 continue;
             }
 
-            // Pop job from queue
+            // Pop job from database queue
             $job = $this->queueService->blpop($queueName, 5);
 
             if ($job) {

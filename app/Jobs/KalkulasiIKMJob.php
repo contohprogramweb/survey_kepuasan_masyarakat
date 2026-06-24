@@ -2,36 +2,22 @@
 
 namespace App\Jobs;
 
-use Predis\Client as RedisClient;
 use Exception;
 
 /**
  * KalkulasiIKMJob
  *
  * Job untuk menghitung Indeks Kepuasan Masyarakat (IKM)
- * yang masuk ke Redis queue setelah survei submitted.
+ * yang masuk ke database queue setelah survei submitted.
  *
  * Berdasarkan SRS F-05, F-06, F-24, dan bagian 7 (Algoritma Kalkulasi IKM)
  */
 class KalkulasiIKMJob
 {
-    protected RedisClient $redis;
     protected const QUEUE_NAME = 'ikm-calculation';
 
-    public function __construct()
-    {
-        $config = config('Redis');
-        $this->redis = new RedisClient([
-            'scheme' => $config->scheme ?? 'tcp',
-            'host' => $config->host ?? '127.0.0.1',
-            'port' => $config->port ?? 6379,
-            'password' => $config->password ?? null,
-            'database' => $config->database ?? 0,
-        ]);
-    }
-
     /**
-     * Dispatch job to Redis queue
+     * Dispatch job to database queue
      *
      * @param array $payload Data untuk kalkulasi IKM
      * @return bool True jika berhasil dispatch
@@ -39,49 +25,28 @@ class KalkulasiIKMJob
     public function dispatch(array $payload): bool
     {
         try {
+            $db = \Config\Database::connect();
+            
             $jobData = [
                 'job_id' => uniqid('ikm_', true),
-                'queue' => self::QUEUE_NAME,
-                'payload' => $payload,
+                'queue_name' => self::QUEUE_NAME,
+                'job_class' => self::class,
+                'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+                'status' => 'pending',
+                'attempts' => 0,
+                'max_attempts' => 3,
+                'available_at' => date('Y-m-d H:i:s'),
                 'created_at' => date('Y-m-d H:i:s'),
-                'status' => 'pending'
             ];
 
-            // Serialize to JSON and push to Redis list (LPUSH for LIFO, RPUSH for FIFO)
-            $this->redis->rpush(
-                self::QUEUE_NAME,
-                json_encode($jobData, JSON_UNESCAPED_UNICODE)
-            );
-
-            // Also persist to database as fallback
-            $this->persistToDatabase($jobData);
+            // Insert to database queue
+            $db->table('tb_queue_jobs')->insert($jobData);
 
             return true;
         } catch (Exception $e) {
             log_message('error', '[KalkulasiIKMJob] Failed to dispatch: ' . $e->getMessage());
             return false;
         }
-    }
-
-    /**
-     * Persist job to database as fallback (UU PDP audit trail)
-     */
-    protected function persistToDatabase(array $jobData): void
-    {
-        $db = \Config\Database::connect();
-
-        $data = [
-            'queue_name' => self::QUEUE_NAME,
-            'job_class' => self::class,
-            'payload' => json_encode($jobData['payload'], JSON_UNESCAPED_UNICODE),
-            'status' => 'pending',
-            'attempts' => 0,
-            'max_attempts' => 3,
-            'available_at' => date('Y-m-d H:i:s'),
-            'created_at' => date('Y-m-d H:i:s'),
-        ];
-
-        $db->table('tb_queue_jobs')->insert($data);
     }
 
     /**
@@ -92,10 +57,35 @@ class KalkulasiIKMJob
     public function pop(): ?array
     {
         try {
-            $jobData = $this->redis->lpop(self::QUEUE_NAME);
+            $db = \Config\Database::connect();
+            
+            // Get oldest pending job
+            $jobRow = $db->table('tb_queue_jobs')
+                ->where('queue_name', self::QUEUE_NAME)
+                ->where('status', 'pending')
+                ->where('available_at <=', date('Y-m-d H:i:s'))
+                ->orderBy('id', 'ASC')
+                ->limit(1)
+                ->get()
+                ->getRowArray();
 
-            if ($jobData) {
-                return json_decode($jobData, true);
+            if ($jobRow) {
+                // Update status to processing
+                $db->table('tb_queue_jobs')
+                    ->where('id', $jobRow['id'])
+                    ->update([
+                        'status' => 'processing',
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+
+                return [
+                    'job_id' => $jobRow['job_id'],
+                    'queue' => $jobRow['queue_name'],
+                    'payload' => json_decode($jobRow['payload'], true),
+                    'attempts' => $jobRow['attempts'],
+                    'max_attempts' => $jobRow['max_attempts'],
+                    'created_at' => $jobRow['created_at'],
+                ];
             }
 
             return null;
@@ -283,6 +273,8 @@ class KalkulasiIKMJob
      */
     protected function triggerNotification(int $idUnit, int $idPeriode, float $ikmTotal, array $deltaInfo): void
     {
+        $db = \Config\Database::connect();
+        
         $notificationData = [
             'type' => 'ikm_alert',
             'priority' => 'high',
@@ -297,11 +289,18 @@ class KalkulasiIKMJob
             'created_at' => date('Y-m-d H:i:s')
         ];
 
-        // Push to notification queue
-        $this->redis->rpush(
-            'notification',
-            json_encode($notificationData, JSON_UNESCAPED_UNICODE)
-        );
+        // Push to notification queue (database)
+        $db->table('tb_queue_jobs')->insert([
+            'job_id' => uniqid('notif_', true),
+            'queue_name' => 'notification',
+            'job_class' => 'NotificationJob',
+            'payload' => json_encode($notificationData, JSON_UNESCAPED_UNICODE),
+            'status' => 'pending',
+            'attempts' => 0,
+            'max_attempts' => 3,
+            'available_at' => date('Y-m-d H:i:s'),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
 
         log_message('info', "[KalkulasiIKMJob] Notification triggered for IKM alert: Unit {$idUnit}, Periode {$idPeriode}");
     }
@@ -330,12 +329,16 @@ class KalkulasiIKMJob
     }
 
     /**
-     * Get queue size
+     * Get queue size from database
      */
     public function getQueueSize(): int
     {
         try {
-            return (int)$this->redis->llen(self::QUEUE_NAME);
+            $db = \Config\Database::connect();
+            return (int)$db->table('tb_queue_jobs')
+                ->where('queue_name', self::QUEUE_NAME)
+                ->where('status', 'pending')
+                ->countAllResults();
         } catch (Exception $e) {
             return 0;
         }
@@ -347,7 +350,11 @@ class KalkulasiIKMJob
     public function clearQueue(): void
     {
         try {
-            $this->redis->del(self::QUEUE_NAME);
+            $db = \Config\Database::connect();
+            $db->table('tb_queue_jobs')
+                ->where('queue_name', self::QUEUE_NAME)
+                ->where('status', 'pending')
+                ->delete();
         } catch (Exception $e) {
             log_message('error', '[KalkulasiIKMJob] Failed to clear queue: ' . $e->getMessage());
         }
