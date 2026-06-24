@@ -2,34 +2,20 @@
 
 namespace App\Jobs;
 
-use Predis\Client as RedisClient;
 use Exception;
 
 /**
  * ExcelJob
  * 
  * Job untuk generate laporan Excel menggunakan PhpSpreadsheet 2.x
- * Diproses melalui queue untuk data besar (SRS F-09)
+ * Diproses melalui database queue untuk data besar (SRS F-09)
  */
 class ExcelJob
 {
-    protected RedisClient $redis;
     protected const QUEUE_NAME = 'excel-generation';
 
-    public function __construct()
-    {
-        $config = config('Redis');
-        $this->redis = new RedisClient([
-            'scheme' => $config->scheme ?? 'tcp',
-            'host' => $config->host ?? '127.0.0.1',
-            'port' => $config->port ?? 6379,
-            'password' => $config->password ?? null,
-            'database' => $config->database ?? 0,
-        ]);
-    }
-
     /**
-     * Dispatch job to Redis queue
+     * Dispatch job to database queue
      * 
      * @param array $payload Data untuk generate Excel
      * @return bool True jika berhasil dispatch
@@ -37,24 +23,24 @@ class ExcelJob
     public function dispatch(array $payload): bool
     {
         try {
+            $db = \Config\Database::connect();
+            
             $jobData = [
                 'job_id' => uniqid('excel_', true),
-                'queue' => self::QUEUE_NAME,
-                'payload' => $payload,
+                'queue_name' => self::QUEUE_NAME,
+                'job_class' => self::class,
+                'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+                'status' => 'pending',
+                'attempts' => 0,
+                'max_attempts' => 3,
+                'available_at' => date('Y-m-d H:i:s'),
                 'created_at' => date('Y-m-d H:i:s'),
-                'status' => 'pending'
             ];
 
-            // Push to Redis queue
-            $this->redis->rpush(
-                self::QUEUE_NAME,
-                json_encode($jobData, JSON_UNESCAPED_UNICODE)
-            );
+            // Insert to database queue
+            $db->table('tb_queue_jobs')->insert($jobData);
 
-            // Persist to database for tracking
-            $this->persistToDatabase($jobData);
-
-            log_message('info', "[ExcelJob] Job {$jobData['job_id']} dispatched to queue");
+            log_message('info', "[ExcelJob] Job {$jobData['job_id']} dispatched to database queue");
 
             return true;
         } catch (Exception $e) {
@@ -71,10 +57,35 @@ class ExcelJob
     public function pop(): ?array
     {
         try {
-            $jobData = $this->redis->lpop(self::QUEUE_NAME);
+            $db = \Config\Database::connect();
+            
+            // Get oldest pending job
+            $jobRow = $db->table('tb_queue_jobs')
+                ->where('queue_name', self::QUEUE_NAME)
+                ->where('status', 'pending')
+                ->where('available_at <=', date('Y-m-d H:i:s'))
+                ->orderBy('id', 'ASC')
+                ->limit(1)
+                ->get()
+                ->getRowArray();
 
-            if ($jobData) {
-                return json_decode($jobData, true);
+            if ($jobRow) {
+                // Update status to processing
+                $db->table('tb_queue_jobs')
+                    ->where('id', $jobRow['id'])
+                    ->update([
+                        'status' => 'processing',
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+
+                return [
+                    'job_id' => $jobRow['job_id'],
+                    'queue' => $jobRow['queue_name'],
+                    'payload' => json_decode($jobRow['payload'], true),
+                    'attempts' => $jobRow['attempts'],
+                    'max_attempts' => $jobRow['max_attempts'],
+                    'created_at' => $jobRow['created_at'],
+                ];
             }
 
             return null;
@@ -140,27 +151,6 @@ class ExcelJob
     }
 
     /**
-     * Persist job to database for tracking
-     */
-    protected function persistToDatabase(array $jobData): void
-    {
-        $db = \Config\Database::connect();
-
-        $data = [
-            'queue_name' => self::QUEUE_NAME,
-            'job_class' => self::class,
-            'payload' => json_encode($jobData['payload'], JSON_UNESCAPED_UNICODE),
-            'status' => 'pending',
-            'attempts' => 0,
-            'max_attempts' => 3,
-            'available_at' => date('Y-m-d H:i:s'),
-            'created_at' => date('Y-m-d H:i:s'),
-        ];
-
-        $db->table('tb_queue_jobs')->insert($data);
-    }
-
-    /**
      * Update job status in database
      */
     protected function updateJobStatus(string $jobId, string $status, ?string $result = null, ?string $errorMessage = null): void
@@ -192,12 +182,16 @@ class ExcelJob
     }
 
     /**
-     * Get queue size
+     * Get queue size from database
      */
     public function getQueueSize(): int
     {
         try {
-            return (int)$this->redis->llen(self::QUEUE_NAME);
+            $db = \Config\Database::connect();
+            return (int)$db->table('tb_queue_jobs')
+                ->where('queue_name', self::QUEUE_NAME)
+                ->where('status', 'pending')
+                ->countAllResults();
         } catch (Exception $e) {
             return 0;
         }
@@ -209,7 +203,11 @@ class ExcelJob
     public function clearQueue(): void
     {
         try {
-            $this->redis->del(self::QUEUE_NAME);
+            $db = \Config\Database::connect();
+            $db->table('tb_queue_jobs')
+                ->where('queue_name', self::QUEUE_NAME)
+                ->where('status', 'pending')
+                ->delete();
         } catch (Exception $e) {
             log_message('error', '[ExcelJob] Failed to clear queue: ' . $e->getMessage());
         }

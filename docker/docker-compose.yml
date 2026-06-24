@@ -2,7 +2,7 @@ version: '3.8'
 
 # =============================================================================
 # Docker Compose untuk Aplikasi IKM v2.0.0
-# Environment: Development
+# Environment: Development (Tanpa Redis - Menggunakan Database Queue)
 # =============================================================================
 
 services:
@@ -34,8 +34,6 @@ services:
     depends_on:
       db-service:
         condition: service_healthy
-      redis-service:
-        condition: service_healthy
     environment:
       - APP_ENV=development
       - APP_DEBUG=true
@@ -44,9 +42,6 @@ services:
       - DB_DATABASE=${DB_DATABASE:-ikm_db}
       - DB_USERNAME=${DB_USERNAME:-root}
       - DB_PASSWORD=${DB_PASSWORD:-secret123}
-      - REDIS_HOST=redis-service
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - XDEBUG_ENABLED=1
       - XDEBUG_MODE=develop,debug
     ports:
@@ -130,36 +125,6 @@ services:
       - SYS_NICE
 
   # =============================================================================
-  # Redis Service: Redis 7.x (Cache, Queue, Session)
-  # =============================================================================
-  redis-service:
-    image: redis:7-alpine
-    container_name: ikm_redis_service
-    restart: unless-stopped
-    command: >
-      redis-server
-      --appendonly yes
-      --requirepass ${REDIS_PASSWORD:-}
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --save 900 1
-      --save 300 10
-      --save 60 10000
-    volumes:
-      - redis_data:/data
-      - ./redis-logs:/var/log/redis
-    networks:
-      - ikm_network
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD:-}", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # =============================================================================
   # Queue Worker Service: Background Jobs Processor (Scalable)
   # =============================================================================
   queue-worker:
@@ -180,15 +145,10 @@ services:
     networks:
       - ikm_network
     depends_on:
-      redis-service:
-        condition: service_healthy
       db-service:
         condition: service_healthy
     environment:
       - APP_ENV=development
-      - REDIS_HOST=redis-service
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - DB_HOST=db-service
       - DB_PORT=3306
       - DB_DATABASE=${DB_DATABASE:-ikm_db}
@@ -233,8 +193,6 @@ services:
     networks:
       - ikm_network
     depends_on:
-      redis-service:
-        condition: service_healthy
       db-service:
         condition: service_healthy
     environment:
@@ -244,9 +202,6 @@ services:
       - DB_DATABASE=${DB_DATABASE:-ikm_db}
       - DB_USERNAME=${DB_USERNAME:-root}
       - DB_PASSWORD=${DB_PASSWORD:-secret123}
-      - REDIS_HOST=redis-service
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     healthcheck:
       test: ["CMD", "pgrep", "-f", "scheduler:run"]
       interval: 30s
@@ -333,9 +288,6 @@ volumes:
   mysql_data:
     driver: local
     name: ikm_mysql_data
-  redis_data:
-    driver: local
-    name: ikm_redis_data
   prometheus_data:
     driver: local
     name: ikm_prometheus_data
