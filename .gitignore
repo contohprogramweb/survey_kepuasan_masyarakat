@@ -17,7 +17,7 @@ venv/
 .venv/
 .env
 .env.local
-.env.*
+*.env.*
 
 # Logs and temp files
 *.log
@@ -38,19 +38,9 @@ htmlcov/
 dist/
 build/
 *.tar.gz
-*.whl
-*.egg
-*.egg-info/
+*.zip
 
 # OS generated files
 .DS_Store
 Thumbs.db
-
-# Testing
-.phpunit.result.cache
-.scrutinizer.yml
-
-# Symfony specific
-var/
-public/bundles/
 ```
