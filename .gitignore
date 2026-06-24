@@ -1,25 +1,38 @@
 ```
-# Docker related
-.dockerenv
-Dockerfile~
-docker-compose*.yml~
-*.dockerignore
+# Compiled and build artifacts
+*.pyc
+__pycache__/
 
-# Temporary files
+# Dependencies
+vendor/
+node_modules/
+composer.lock
+
+# Logs and temp files
+*.log
 *.tmp
 *.swp
 
-# Logs
-*.log
-
-# Environment files
+# Environment
 .env
 .env.local
-*.env.*
+.env.*
 
-# IDE specific
+# Editors
 .vscode/
 .idea/
+
+# Laravel-specific (if applicable)
+bootstrap/cache/
+storage/logs/
+storage/framework/cache/
+storage/framework/sessions/
+storage/framework/views/
+public/storage/
+
+# Database
+*.sqlite
+*.db
 
 # OS generated files
 .DS_Store
