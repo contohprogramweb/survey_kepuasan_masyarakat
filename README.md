@@ -1,281 +1,253 @@
-# Aplikasi Survei Kepuasan Masyarakat (IKM) v2.0.0
+# Multi-Provider Authentication System
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PHP 8.2+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://php.net/)
-[![CodeIgniter 4.4+](https://img.shields.io/badge/CodeIgniter-4.4+-red.svg)](https://codeigniter.com/)
+Sistem autentikasi multi-provider dengan dukungan untuk:
+- Login lokal (username + password bcrypt + MFA TOTP)
+- OAuth 2.0 / OpenID Connect (Google, GitHub, Facebook, custom)
+- SAML 2.0 (OneLogin/php-saml)
+- LDAP (ext-ldap fallback)
 
-Aplikasi Survei Kepuasan Masyarakat (IKM) untuk instansi pemerintah sesuai **PermenPANRB No. 14 Tahun 2017**.
+## Fitur
 
-## 📋 Fitur Utama
+1. **JWT dengan RS256** - Token asimetris untuk session
+2. **Refresh Token Rotation** - Keamanan refresh token
+3. **Session Timeout 30 menit** - Dapat dikonfigurasi
+4. **MFA Wajib** - Untuk role Super Admin dan DPO
+5. **RBAC** - 6 peran: Super Admin, Admin, Operator, Pimpinan, DPO, DevOps
 
-### Core Features
-- ✅ Pengukuran Indeks Kepuasan Masyarakat sesuai PermenPANRB 14/2017
-- ✅ Multi-survey dengan berbagai elemen dan pertanyaan
-- ✅ Real-time analytics dan dashboard
-- ✅ Export laporan (PDF, Excel, CSV)
-- ✅ Responsive design (Bootstrap 5.3)
+## Struktur File
 
-### Security & Compliance
-- 🔐 Autentikasi modern (OAuth2/SAML/OIDC)
-- 🔐 Multi-Factor Authentication (MFA/TOTP)
-- 🔐 Role-Based Access Control (RBAC)
-- 🔐 UU PDP Compliance dengan Consent Management
-- 🔐 Audit logging lengkap
-- 🔐 CSRF Protection & Rate Limiting
+```
+src/
+├── Config/
+│   └── AuthConfig.php          # Konfigurasi autentikasi
+├── Controller/
+│   └── AuthController.php      # Controller utama autentikasi
+├── Entity/
+│   └── User.php                # Entity user dengan RBAC
+├── Middleware/
+│   ├── Authenticate.php        # Middleware autentikasi JWT
+│   ├── Authorize.php           # Middleware RBAC
+│   └── MfaRequired.php         # Middleware MFA verification
+├── Repository/
+│   └── UserRepository.php      # Repository pattern untuk user
+├── Service/
+│   ├── JwtService.php          # JWT generate/verify RS256
+│   ├── MfaService.php          # TOTP MFA service
+│   ├── OAuth2/
+│   │   └── OAuth2Service.php   # OAuth2 provider handler
+│   ├── Saml/
+│   │   └── SamlService.php     # SAML 2.0 handler
+│   └── Ldap/
+│       └── LdapService.php     # LDAP authentication
+templates/
+│   └── login.html.php          # Login page template
+keys/
+│   ├── jwt_private.pem         # JWT private key
+│   └── jwt_public.pem          # JWT public key
+```
 
-### Architecture
-- 🏗️ Monolitik siap-microservices
-- 🏗️ Queue system dengan Redis
-- 🏗️ Database partitioning ready
-- 🏗️ Docker & Kubernetes ready
-- 🏗️ CI/CD pipeline (GitHub Actions)
-
-### Monitoring & Observability
-- 📊 Prometheus metrics
-- 📊 Grafana dashboards
-- 📊 Health checks
-- 📊 Performance monitoring
-
-## 🛠️ Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| Backend | PHP 8.2+, CodeIgniter 4.4.x |
-| Frontend (Admin) | Bootstrap 5.3, jQuery 3.7, Chart.js 4 |
-| Frontend (Publik) | Bootstrap 5.3, Vanilla JS |
-| Database | MySQL 8.0 dengan partitioning |
-| Cache/Queue | Redis 7.x |
-| Container | Docker, Docker Compose |
-| Orchestration | Kubernetes-ready |
-| Monitoring | Prometheus, Grafana |
-| CI/CD | GitHub Actions |
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Docker & Docker Compose
-- PHP 8.2+ (untuk local development tanpa Docker)
-- Composer
-- MySQL 8.0+
-- Redis 7.x
-
-### Installation dengan Docker
+## Instalasi Dependencies
 
 ```bash
-# Clone repository
-git clone https://github.com/your-org/ikm-app.git
-cd ikm-app
-
-# Copy environment file
-cp .env.example .env
-
-# Generate encryption key
-php spark key:generate --show
-
-# Update .env dengan encryption key
-# ENCRYPTION_KEY=your-generated-key-here
-
-# Start all services
-docker-compose up -d
-
-# Run migrations
-docker-compose exec app php spark migrate --all
-
-# Seed initial data (optional)
-docker-compose exec app php spark db:seed
-
-# Access application
-# Web: http://localhost:8080
-# Prometheus: http://localhost:9090
-# Grafana: http://localhost:3000
+composer require firebase/php-jwt
+composer require league/oauth2-client
+composer require onelogin/php-saml
+composer require spomky-labs/otphp
 ```
 
-### Local Development (Tanpa Docker)
+## Konfigurasi
+
+Edit `src/Config/AuthConfig.php` untuk mengatur:
+- JWT keys path
+- OAuth2 provider credentials
+- SAML IdP settings
+- LDAP connection details
+
+## Generate JWT Keys
 
 ```bash
-# Install dependencies
-composer install
-
-# Copy environment file
-cp .env.example .env
-
-# Generate encryption key
-php spark key:generate
-
-# Setup database
-mysql -u root -p -e "CREATE DATABASE ikm_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# Run migrations
-php spark migrate
-
-# Seed data
-php spark db:seed
-
-# Start development server
-php spark serve
-
-# Access: http://localhost:8080
+mkdir -p keys
+openssl genrsa -out keys/jwt_private.pem 2048
+openssl rsa -in keys/jwt_private.pem -pubout -out keys/jwt_public.pem
 ```
 
-## 📁 Struktur Direktori
+Atau gunakan method static:
 
-```
-ikm-app/
-├── app/
-│   ├── Config/           # Konfigurasi aplikasi
-│   ├── Controllers/      # Request handlers
-│   │   ├── Admin/        # Admin controllers
-│   │   ├── Api/          # API controllers
-│   │   ├── Auth/         # Authentication controllers
-│   │   └── Publik/       # Public survey controllers
-│   ├── Database/
-│   │   ├── Migrations/   # Database migrations
-│   │   └── Seeds/        # Database seeds
-│   ├── Entities/         # Domain entities
-│   ├── Filters/          # Middleware filters
-│   ├── Helpers/          # Helper functions
-│   ├── Language/         # Translations
-│   ├── Libraries/        # Custom libraries
-│   ├── Models/           # Database models
-│   ├── Queue/
-│   │   └── Jobs/         # Queue jobs
-│   ├── Services/         # Service layer
-│   └── Views/            # View templates
-├── docker/               # Docker configuration
-├── public/               # Public assets
-│   └── assets/
-│       ├── css/
-│       ├── js/
-│       ├── images/
-│       └── fonts/
-├── tests/                # PHPUnit tests
-├── writable/             # Writable directories
-│   ├── cache/
-│   ├── logs/
-│   ├── session/
-│   └── uploads/
-└── .github/
-    └── workflows/        # CI/CD pipelines
+```php
+JwtService::generateKeyPair(
+    'keys/jwt_private.pem',
+    'keys/jwt_public.pem'
+);
 ```
 
-## 🔧 Configuration
+## Penggunaan
 
-### Environment Variables
+### Inisialisasi Services
 
-Edit `.env` file untuk konfigurasi:
+```php
+use App\Config\AuthConfig;
+use App\Service\JwtService;
+use App\Service\MfaService;
+use App\Service\OAuth2\OAuth2Service;
+use App\Service\Saml\SamlService;
+use App\Service\Ldap\LdapService;
+use App\Repository\UserRepository;
+use App\Controller\AuthController;
+
+// Load config
+$config = AuthConfig::getAll();
+
+// Initialize services
+$jwtService = new JwtService(
+    $config['jwt']['private_key_path'],
+    $config['jwt']['public_key_path'],
+    $config['jwt']['passphrase'],
+    $config['jwt']['access_token_ttl'],
+    $config['jwt']['refresh_token_ttl']
+);
+
+$mfaService = new MfaService(
+    $config['mfa']['issuer'],
+    $config['mfa']['digits'],
+    $config['mfa']['period']
+);
+
+$oauth2Service = new OAuth2Service(
+    $config['oauth2']['providers'],
+    $config['oauth2']['redirect_uri']
+);
+
+$samlService = new SamlService($config['saml']);
+
+$ldapService = new LdapService($config['ldap']);
+
+$userRepository = new UserRepository();
+
+// Initialize controller
+$authController = new AuthController(
+    $jwtService,
+    $mfaService,
+    $oauth2Service,
+    $samlService,
+    $ldapService,
+    $userRepository,
+    $config['session']['timeout']
+);
+```
+
+### Middleware Usage
+
+```php
+use App\Middleware\Authenticate;
+use App\Middleware\Authorize;
+use App\Middleware\MfaRequired;
+
+// Authentication middleware
+$authenticate = new Authenticate($jwtService);
+
+// Authorization middleware (RBAC)
+$authorizeAdmin = Authorize::role('Admin');
+$authorizeSuperAdmin = Authorize::superAdmin();
+$authorizeAnyRole = Authorize::anyRole(['Admin', 'Super Admin']);
+
+// MFA required middleware
+$mfaRequired = MfaRequired::strict($mfaService);
+
+// Chain middleware
+$middlewareStack = [
+    [$authenticate, 'handle'],
+    [$authorizeAdmin, 'handle'],
+    [$mfaRequired, 'handle'],
+];
+```
+
+### Sample Users
+
+| Username | Password | Role | MFA Required |
+|----------|----------|------|--------------|
+| superadmin | SuperAdmin123! | Super Admin | Yes |
+| admin | Admin123! | Admin | No |
+| operator | Operator123! | Operator | No |
+| pimpinan | Pimpinan123! | Pimpinan | No |
+| dpo | DPO123! | DPO | Yes |
+| devops | DevOps123! | DevOps | No |
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/auth/login` | Show login page |
+| POST | `/auth/login` | Local login (username+password) |
+| POST | `/auth/mfa/verify` | Verify MFA code |
+| GET | `/auth/oauth2/{provider}` | OAuth2 login redirect |
+| GET | `/auth/oauth2/callback` | OAuth2 callback handler |
+| GET | `/auth/saml` | SAML login redirect |
+| POST | `/auth/saml/callback` | SAML response handler |
+| POST | `/auth/ldap` | LDAP login |
+| POST | `/auth/refresh` | Refresh access token |
+| POST | `/auth/logout` | Logout user |
+| GET | `/auth/mfa/setup` | Setup MFA (QR code) |
+| POST | `/auth/mfa/enable` | Enable MFA |
+| GET | `/auth/session` | Get session info |
+
+## Security Features
+
+1. **Password Hashing**: bcrypt dengan cost factor default PHP
+2. **JWT RS256**: Asymmetric signing dengan RSA 2048-bit
+3. **Refresh Token Rotation**: Old token revoked when refreshed
+4. **Timing Attack Prevention**: Constant-time comparison untuk password
+5. **MFA Enforcement**: Wajib untuk role tertentu
+6. **Session Timeout**: 30 menit idle timeout
+7. **Secure Cookies**: HttpOnly, Secure, SameSite=Strict
+
+## Role Permissions
+
+| Permission | Super Admin | Admin | Operator | Pimpinan | DPO | DevOps |
+|------------|-------------|-------|----------|---------|-----|--------|
+| * (all) | ✓ | | | | | |
+| user.read | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| user.write | ✓ | ✓ | ✓ | | | |
+| user.delete | ✓ | ✓ | | | | |
+| system.read | ✓ | ✓ | ✓ | | | ✓ |
+| system.write | ✓ | ✓ | | | | ✓ |
+| audit.read | ✓ | ✓ | | ✓ | ✓ | |
+| report.read | ✓ | | | ✓ | | |
+| report.write | ✓ | | | ✓ | | |
+| data.read | ✓ | | | | ✓ | |
+| data.write | ✓ | | | | ✓ | |
+| data.delete | ✓ | | | | ✓ | |
+| privacy.read | ✓ | | | | ✓ | |
+| privacy.write | ✓ | | | | ✓ | |
+| deploy.read | ✓ | | | | | ✓ |
+| deploy.write | ✓ | | | | | ✓ |
+| monitoring.read | ✓ | | | | | ✓ |
+
+## Environment Variables
 
 ```env
-# Database
-database.default.hostname = localhost
-database.default.database = ikm_db
-database.default.username = root
-database.default.password = your_password
+# OAuth2 Providers
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-client-secret
+FACEBOOK_CLIENT_ID=your-client-id
+FACEBOOK_CLIENT_SECRET=your-client-secret
 
-# Redis
-redis.default.hostname = 127.0.0.1
-redis.default.port = 6379
+# SAML
+SAML_IDP_ENTITY_ID=https://idp.example.com/saml
+SAML_IDP_SSO_URL=https://idp.example.com/sso
+SAML_IDP_SLS_URL=https://idp.example.com/slo
+SAML_IDP_CERT=-----BEGIN CERTIFICATE-----...
 
-# OAuth2
-oauth2.enabled = true
-oauth2.provider = google
-oauth2.clientId = your-client-id
-oauth2.clientSecret = your-client-secret
-
-# MFA
-mfa.enabled = true
-mfa.requiredForRoles = admin,super_admin
-
-# UU PDP
-pdp.consentEnabled = true
-pdp.dataRetentionDays = 730
+# LDAP
+LDAP_HOST=ldap.example.com
+LDAP_PORT=389
+LDAP_USE_TLS=false
+LDAP_BASE_DN=dc=example,dc=com
+LDAP_BIND_DN=cn=admin,dc=example,dc=com
+LDAP_BIND_PASSWORD=secret
 ```
 
-## 📊 API Documentation
+## License
 
-API endpoints tersedia di `/api/v1/`. Dokumentasi lengkap tersedia setelah instalasi.
-
-### Authentication
-
-```bash
-# Get API token
-curl -X POST http://localhost:8080/api/v1/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"password"}'
-
-# Use token in requests
-curl http://localhost:8080/api/v1/surveys \
-  -H "Authorization: Bearer {token}"
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-composer test
-
-# Run with coverage
-composer test:coverage
-
-# Run specific test
-./vendor/bin/phpunit tests/unit/SurveyTest.php
-```
-
-## 📈 Monitoring
-
-### Prometheus Metrics
-
-Akses metrics di `http://localhost:9090/metrics`:
-- Request rate
-- Response time
-- Error rate
-- Queue length
-- Database connections
-
-### Grafana Dashboards
-
-Pre-configured dashboards di `http://localhost:3000`:
-- Application Overview
-- Survey Analytics
-- System Performance
-- Queue Monitoring
-
-## 🔒 Security
-
-### Default Credentials (Development Only)
-
-```
-Username: admin
-Password: admin123
-```
-
-**⚠️ Penting:** Ganti password default sebelum production!
-
-### Security Best Practices
-
-1. Selalu gunakan HTTPS di production
-2. Rotate encryption keys secara berkala
-3. Enable MFA untuk semua admin users
-4. Review audit logs secara rutin
-5. Backup database secara teratur
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## 👥 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-## 📞 Support
-
-Untuk bantuan teknis:
-- Email: support@ikm.go.id
-- Documentation: https://docs.ikm.go.id
-
----
-
-**Developed with ❤️ for Indonesian Government**
+MIT License
