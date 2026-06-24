@@ -1,0 +1,162 @@
+# =============================================================================
+# Prometheus Alert Rules untuk Aplikasi IKM v2.0.0
+# =============================================================================
+
+groups:
+  - name: ikm_application_alerts
+    interval: 30s
+    rules:
+      # Application Down Alert
+      - alert: IKMAppDown
+        expr: up{job="app-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ikm-app
+        annotations:
+          summary: "IKM Application is down"
+          description: "The IKM application ({{ $labels.instance }}) has been down for more than 1 minute."
+
+      # High Response Time Alert
+      - alert: IKMHighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="app-service"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: ikm-app
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s, which is above the 2s threshold."
+
+      # High Error Rate Alert
+      - alert: IKMHighErrorRate
+        expr: rate(http_requests_total{job="app-service", status=~"5.."}[5m]) / rate(http_requests_total{job="app-service"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: ikm-app
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }}, which is above the 5% threshold."
+
+  - name: ikm_database_alerts
+    interval: 30s
+    rules:
+      # MySQL Down Alert
+      - alert: MySQLDown
+        expr: mysql_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mysql
+        annotations:
+          summary: "MySQL database is down"
+          description: "MySQL database ({{ $labels.instance }}) is not responding."
+
+      # MySQL High Connections Alert
+      - alert: MySQLHighConnections
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: mysql
+        annotations:
+          summary: "MySQL connection pool nearly exhausted"
+          description: "MySQL connection usage is {{ $value | humanizePercentage }}."
+
+      # MySQL Slow Queries Alert
+      - alert: MySQLSlowQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: mysql
+        annotations:
+          summary: "High number of slow queries"
+          description: "MySQL is experiencing {{ $value }} slow queries per second."
+
+  - name: ikm_redis_alerts
+    interval: 30s
+    rules:
+      # Redis Down Alert
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance ({{ $labels.instance }}) is not responding."
+
+      # Redis High Memory Usage Alert
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}."
+
+      # Redis Queue Backlog Alert
+      - alert: RedisQueueBacklog
+        expr: redis_queue_length > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis queue backlog is growing"
+          description: "Queue length is {{ $value }}, which may indicate processing issues."
+
+  - name: ikm_queue_alerts
+    interval: 30s
+    rules:
+      # Queue Worker Down Alert
+      - alert: QueueWorkerDown
+        expr: up{job="queue-worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: queue-worker
+        annotations:
+          summary: "Queue worker is down"
+          description: "Queue worker ({{ $labels.instance }}) has been down for more than 2 minutes."
+
+      # Failed Jobs Alert
+      - alert: QueueJobsFailed
+        expr: rate(queue_jobs_failed_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: queue-worker
+        annotations:
+          summary: "High rate of failed queue jobs"
+          description: "Failed jobs rate is {{ $value }}/s, which may indicate processing issues."
+
+  - name: ikm_pdp_compliance_alerts
+    interval: 60s
+    rules:
+      # Consent Expiry Alert
+      - alert: PDPConsentExpiring
+        expr: count(consents{status="granted"} and (time() - consent_granted_timestamp) > 31536000) > 0
+        for: 1h
+        labels:
+          severity: info
+          service: pdp-compliance
+        annotations:
+          summary: "Consents expiring soon"
+          description: "Some user consents are approaching the 1-year expiry limit as per UU PDP."
+
+      # Data Retention Alert
+      - alert: PDPDataRetention
+        expr: count(audit_logs{created_at < time() - 157680000}) > 0
+        for: 24h
+        labels:
+          severity: info
+          service: pdp-compliance
+        annotations:
+          summary: "Data retention period exceeded"
+          description: "Some audit logs are older than 5 years and should be reviewed for deletion."

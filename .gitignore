@@ -1,35 +1,27 @@
 ```
-# Dependencies
-vendor/
-composer.lock
-
-# Environment
-.env
-.env.local
-.env.*
-
-# Logs
-*.log
+# Docker related
+.dockerenv
+Dockerfile~
+docker-compose*.yml~
+*.dockerignore
 
 # Temporary files
 *.tmp
 *.swp
-*.swo
 
-# Cache
-.cache/
-.php_cs.cache
+# Logs
+*.log
 
-# IDE
+# Environment files
+.env
+.env.local
+*.env.*
+
+# IDE specific
 .vscode/
 .idea/
 
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
-
-# Build artifacts
-dist/
-build/
-target/
 ```
