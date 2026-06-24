@@ -162,6 +162,114 @@ class DashboardModel extends Model
     }
 
     /**
+     * Get Tren IKM per Unit untuk Dashboard Publik (hanya periode published)
+     * 
+     * @param int|null $unitId
+     * @param int|null $tahun
+     * @return array
+     */
+    public function getPublicTrenIkm($unitId = null, $tahun = null)
+    {
+        $builder = $this->db->table('tb_survei_responses r');
+        $builder->select('p.nama_periode, p.tahun, p.urutan, u.nama_unit, AVG(r.nilai) as ikm_avg');
+        $builder->join('tb_periode p', 'r.periode_id = p.id');
+        $builder->join('tb_unit_layanan u', 'r.unit_id = u.id');
+        $builder->where('p.is_published', 1); // Hanya periode yang dipublikasikan
+        $builder->groupBy('p.id, u.id');
+        $builder->orderBy('p.tahun', 'ASC');
+        $builder->orderBy('p.urutan', 'ASC');
+
+        if ($unitId) {
+            $builder->where('r.unit_id', $unitId);
+        }
+        if ($tahun) {
+            $builder->where('p.tahun', $tahun);
+        }
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Distribusi Jawaban per Unsur untuk Dashboard Publik (hanya periode published)
+     * 
+     * @param int|null $unitId
+     * @param int|null $periodeId
+     * @return array
+     */
+    public function getPublicDistribusiUnsur($unitId = null, $periodeId = null)
+    {
+        $builder = $this->db->table('tb_survei_responses r');
+        $builder->select('un.nama_unsur, COUNT(r.id) as total_jawaban, AVG(r.nilai) as rata_rata');
+        $builder->join('tb_unsur_pelayanan un', 'r.unsur_id = un.id');
+        $builder->join('tb_periode p', 'r.periode_id = p.id');
+        $builder->where('p.is_published', 1); // Hanya periode yang dipublikasikan
+        $builder->groupBy('un.id, un.nama_unsur');
+        
+        if ($unitId) {
+            $builder->where('r.unit_id', $unitId);
+        }
+        if ($periodeId) {
+            $builder->where('r.periode_id', $periodeId);
+        }
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Rekapitulasi Periode untuk Dashboard Publik (hanya periode published)
+     * 
+     * @param int|null $unitId
+     * @param int|null $tahun
+     * @return array
+     */
+    public function getPublicRekapitulasi($unitId = null, $tahun = null)
+    {
+        $sql = "SELECT 
+                    p.id as periode_id,
+                    p.nama_periode,
+                    p.tahun,
+                    p.urutan,
+                    COUNT(DISTINCT r.responden_id) as total_responden,
+                    AVG(r.nilai) as nilai_ikm,
+                    CASE 
+                        WHEN AVG(r.nilai) >= 85 THEN 'Sangat Baik'
+                        WHEN AVG(r.nilai) >= 70 THEN 'Baik'
+                        WHEN AVG(r.nilai) >= 55 THEN 'Kurang Baik'
+                        ELSE 'Tidak Baik'
+                    END as mutu_pelayanan
+                FROM tb_survei_responses r
+                JOIN tb_periode p ON r.periode_id = p.id
+                WHERE p.is_published = 1"; // Hanya periode yang dipublikasikan
+
+        $params = [];
+        if ($unitId) {
+            $sql .= " AND r.unit_id = ?";
+            $params[] = $unitId;
+        }
+        if ($tahun) {
+            $sql .= " AND p.tahun = ?";
+            $params[] = $tahun;
+        }
+
+        $sql .= " GROUP BY p.id, p.nama_periode, p.tahun, p.urutan ORDER BY p.tahun DESC, p.urutan DESC";
+
+        $query = $this->db->query($sql, $params);
+        $results = $query->getResultArray();
+
+        // Hitung Delta (Perubahan dari periode sebelumnya)
+        foreach ($results as $key => $row) {
+            $prevIndex = $key + 1;
+            if (isset($results[$prevIndex])) {
+                $results[$key]['delta'] = round($row['nilai_ikm'] - $results[$prevIndex]['nilai_ikm'], 2);
+            } else {
+                $results[$key]['delta'] = 0;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Get semua unit layanan untuk filter
      * 
      * @return array
