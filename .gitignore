@@ -4,17 +4,19 @@
 __pycache__/
 *.o
 *.obj
+*.class
 *.exe
 *.dll
 *.so
-*.class
+*.a
 *.out
 
 # Dependencies
 vendor/
 node_modules/
-composer.lock
-*.lock
+.env
+.env.local
+*.env.*
 
 # Logs and temp files
 *.log
@@ -22,42 +24,21 @@ composer.lock
 *.swp
 *.swo
 
-# Environment
-.env
-.env.local
-.env.*
-
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # OS generated files
 .DS_Store
 Thumbs.db
 
-# Build and distribution
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Build directories (if present)
 dist/
 build/
 target/
-*.tar*
-*.zip
-*.gz
-*.rar
-*.7z
-
-# Testing
-.coverage
-coverage/
-htmlcov/
-
-# PHP specific
-*.php~
-phpunit.xml
-phpunit.xml.dist
-
-# Laravel/CodeIgniter specific (if applicable)
-storage/
-bootstrap/cache/
 ```
