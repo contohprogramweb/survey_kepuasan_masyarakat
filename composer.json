@@ -1,0 +1,59 @@
+{
+    "name": "pemerintah/ikm-app",
+    "description": "Aplikasi Survei Kepuasan Masyarakat (IKM) v2.0.0",
+    "license": "MIT",
+    "type": "project",
+    "require": {
+        "php": "^8.2",
+        "codeigniter4/framework": "^4.4",
+        "ext-redis": "*",
+        "ext-json": "*",
+        "ext-pdo": "*",
+        "ext-mbstring": "*",
+        "ext-intl": "*",
+        "league/oauth2-client": "^2.7",
+        "firebase/php-jwt": "^6.10",
+        "robthree/twofactorauth": "^2.0",
+        "predis/predis": "^2.2"
+    },
+    "require-dev": {
+        "codeigniter4/devkit": "^1.1",
+        "phpunit/phpunit": "^10.5",
+        "fakerphp/faker": "^1.23",
+        "mikey179/vfsstream": "^1.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Config\\": "app/Config/"
+        },
+        "exclude-from-classmap": [
+            "**/Database/Migrations/**"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-update-cmd": [
+            "CodeIgniter\\ComposerScripts::postUpdate"
+        ],
+        "test": "phpunit",
+        "test:coverage": "phpunit --coverage-html build/coverage",
+        "analyze": "phpstan analyze",
+        "cs": "phpcbf",
+        "cs:check": "phpcs"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

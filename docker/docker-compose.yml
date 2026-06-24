@@ -1,0 +1,189 @@
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Web Application (Nginx + PHP-FPM)
+  # =============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ikm_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html:cached
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+    networks:
+      - ikm_network
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-ikm_db}
+      - DB_USERNAME=${DB_USERNAME:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "${APP_PORT:-8080}:80"
+      - "${APP_SSL_PORT:-8443}:443"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =============================================================================
+  # MySQL Database dengan Partitioning Support
+  # =============================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: ikm_mysql
+    restart: unless-stopped
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --innodb-buffer-pool-size=256M
+      --innodb-log-file-size=64M
+      --innodb-flush-log-at-trx-commit=2
+      --innodb-flush-method=O_DIRECT
+      --max-connections=200
+      --query-cache-size=64M
+      --query-cache-type=1
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-ikm_db}
+      MYSQL_USER: ${DB_USER:-ikm_user}
+      MYSQL_PASSWORD: ${DB_USER_PASSWORD:-secret}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - ikm_network
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # =============================================================================
+  # Redis (Queue & Cache)
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ikm_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    networks:
+      - ikm_network
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # Prometheus untuk Monitoring
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ikm_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - ikm_network
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - app
+
+  # =============================================================================
+  # Grafana untuk Dashboard Monitoring
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ikm_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - ikm_network
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+
+  # =============================================================================
+  # Queue Worker (Untuk Background Jobs)
+  # =============================================================================
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ikm_worker
+    restart: unless-stopped
+    command: php spark queue:work --daemon
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html:cached
+    networks:
+      - ikm_network
+    depends_on:
+      - redis
+      - mysql
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  ikm_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
