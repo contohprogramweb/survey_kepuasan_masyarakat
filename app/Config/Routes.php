@@ -151,6 +151,18 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin', 'filter' => 'au
     $routes->post('backup/create', 'BackupController::create');
     $routes->post('backup/restore', 'BackupController::restore');
     $routes->delete('backup/(:num)', 'BackupController::delete/$1');
+    
+    // Laporan Module (F-08, F-09)
+    $routes->get('laporan', 'LaporanController::index');
+    $routes->get('laporan/preview-pdf', 'LaporanController::previewPdf');
+    $routes->post('laporan/generate-pdf', 'LaporanController::generatePdf');
+    $routes->post('laporan/generate-excel', 'LaporanController::generateExcel');
+    $routes->get('laporan/download-pdf/(:num)', 'LaporanController::downloadPdf/$1');
+    $routes->get('laporan/download-excel/(:num)', 'LaporanController::downloadExcel/$1');
+    $routes->get('laporan/direct-pdf', 'LaporanController::directPdf');
+    $routes->get('laporan/direct-excel', 'LaporanController::directExcel');
+    $routes->get('laporan/job-status/(:num)', 'LaporanController::jobStatus/$1');
+    $routes->get('laporan/history', 'LaporanController::history');
 });
 
 // =============================================================================

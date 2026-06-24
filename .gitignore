@@ -1,4 +1,8 @@
 ```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+
 # Dependencies
 vendor/
 composer.lock
@@ -6,28 +10,28 @@ composer.lock
 # Logs and temp files
 *.log
 *.tmp
+*.swp
 
 # Environment
 .env
 .env.local
 *.env.*
 
-# Editor/IDE
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Build artifacts
-dist/
-build/
-target/
-
-# Cache
-.cache/
-*.cache
-
-# OS specific
+# OS
 .DS_Store
 Thumbs.db
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Build directories
+build/
+dist/
+target/
 ```
