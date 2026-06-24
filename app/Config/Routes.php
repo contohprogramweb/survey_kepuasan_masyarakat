@@ -74,8 +74,9 @@ $routes->group('auth', ['namespace' => 'App\Controllers\Auth'], function ($route
 
 $routes->group('admin', ['namespace' => 'App\Controllers\Admin', 'filter' => 'auth'], function ($routes) {
     
-    // Dashboard
-    $routes->get('/', 'Dashboard::index');
+    // Dashboard Internal IKM (F-07, F-17)
+    $routes->get('/', 'DashboardController::index');
+    $routes->get('dashboard', 'DashboardController::index');
     
     // Kuesioner Management (Modul Manajemen Kuesioner - F-04, UC-05)
     $routes->get('kuesioner', 'KuesionerController::index');
@@ -167,6 +168,11 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api', 'filter' => 'api
     
     // Webhooks
     $routes->post('webhooks/(:segment)', 'WebhookController::handle/$1');
+});
+
+// Dashboard API (Internal Admin)
+$routes->group('api/dashboard', ['namespace' => 'App\Controllers\Api', 'filter' => 'auth'], function ($routes) {
+    $routes->get('data', 'DashboardApiController::getData');
 });
 
 // =============================================================================
