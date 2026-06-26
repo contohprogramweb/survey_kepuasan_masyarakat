@@ -57,13 +57,11 @@ Sistem ini mendukung pengelolaan survei kepuasan secara terintegrasi, mulai dari
 - ✅ Export laporan (PDF, Excel, CSV)
 
 ### 5. **Manajemen Pengguna & Hak Akses**
-- ✅ **Role-Based Access Control (RBAC)** dengan 6 role:
+- ✅ **Role-Based Access Control (RBAC)** dengan 4 role:
   - **Super Admin**: Full access system
-  - **Admin**: Manajemen operasional
+  - **Admin Unit**: Manajemen operasional unit
   - **Operator**: Input data & verifikasi
-  - **Pimpinan**: View dashboard & laporan
-  - **DPO (Data Protection Officer)**: Compliance PDP
-  - **DevOps**: Maintenance & backup
+  - **Viewer**: View dashboard & laporan
 - ✅ Multi-factor Authentication (MFA) wajib untuk role tertentu
 - ✅ OAuth 2.0 integration (Google, GitHub, Facebook)
 - ✅ Session management dengan JWT
@@ -117,11 +115,9 @@ Sistem ini mendukung pengelolaan survei kepuasan secara terintegrasi, mulai dari
 | Role | Deskripsi | Akses Utama |
 |------|-----------|-------------|
 | **Super Admin** | Administrator tertinggi sistem | Full access: user management, roles, permissions, system settings, audit logs, backup |
-| **Admin** | Pengelola operasional harian | Manajemen survei, periode, kuesioner, unit layanan, users (level operator), laporan |
+| **Admin Unit** | Pengelola operasional unit layanan | Manajemen survei, periode, kuesioner, unit layanan, users (level operator), laporan |
 | **Operator** | Petugas input & verifikasi | Input respons manual, verifikasi data, view unit sendiri, export data terbatas |
-| **Pimpinan** | Eksekutif/Direktur | Dashboard analytics, laporan IKM, comparison charts, trend analysis (read-only) |
-| **DPO** | Data Protection Officer | Consent management, audit logs, PDP compliance reports, data access requests |
-| **DevOps** | Technical maintenance | System monitoring, queue management, backup/restore, webhook configuration, API keys |
+| **Viewer** | Eksekutif/Direktur | Dashboard analytics, laporan IKM, comparison charts, trend analysis (read-only) |
 | **Publik** | Responden survei | Akses form survei, view hasil agregat (jika dipublikasikan), submit saran |
 
 ---
@@ -244,11 +240,9 @@ Setelah menjalankan seeder, gunakan kredensial berikut untuk login:
 | Username | Password | Role | MFA Required |
 |----------|----------|------|--------------|
 | `superadmin` | `SuperAdmin123!` | Super Admin | ✅ Ya |
-| `admin` | `Admin123!` | Admin | ❌ Tidak |
+| `admin` | `Admin123!` | Admin Unit | ❌ Tidak |
 | `operator` | `Operator123!` | Operator | ❌ Tidak |
-| `pimpinan` | `Pimpinan123!` | Pimpinan | ❌ Tidak |
-| `dpo` | `DPO123!` | DPO | ✅ Ya |
-| `devops` | `DevOps123!` | DevOps | ❌ Tidak |
+| `viewer` | `Viewer123!` | Viewer | ❌ Tidak |
 
 **Catatan**: Untuk role yang memerlukan MFA, scan QR code yang ditampilkan saat login pertama kali menggunakan aplikasi authenticator (Google Authenticator, Authy, dll).
 
