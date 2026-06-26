@@ -30,7 +30,6 @@ Revisi versi 2.0.0 ini melakukan upgrade menyeluruh dari CodeIgniter 3 ke CodeIg
 - Autentikasi modern: OAuth 2.0, OpenID Connect, SAML 2.0
 - REST API publik dengan OpenAPI 3.0
 - UU PDP full compliance dengan consent management
-- DevOps: Docker, CI/CD, Kubernetes-ready
 - Monitoring: Prometheus, Grafana, structured logging
 
 ## **1.2 Lingkup Sistem**
@@ -71,7 +70,6 @@ Aplikasi IKM ini merupakan sistem informasi berbasis web yang dibangun untuk mem
 | JWT                   | JSON Web Token - standar token autentikasi berbasis JSON                                                          |
 | OAuth 2.0             | Protokol otorisasi modern untuk SSO dan third-party access                                                        |
 | SAML 2.0              | Security Assertion Markup Language - protokol SSO berbasis XML                                                    |
-| DPO                   | Data Protection Officer - petugas perlindungan data sesuai UU PDP                                                 |
 | UU PDP                | Undang-Undang Perlindungan Data Pribadi                                                                           |
 | Redis                 | In-memory data store untuk cache, queue, dan session                                                              |
 | CDN                   | Content Delivery Network - jaringan distribusi konten statis                                                      |
@@ -143,10 +141,9 @@ Versi 2.0.0 menambahkan 4 fungsi baru (F-23 s.d. F-26) di samping 22 fungsi yang
 | F-20   | Dashboard Publik Transparansi IKM  | Halaman publik read-only, SEO-optimized, JSON-LD structured data            | Diperbarui         |
 | F-21   | Backup & Restore Database          | Backup robust: Percona XtraBackup hot backup + S3 offsite + enkripsi        | Diperbarui         |
 | F-22   | Integrasi SSO / LDAP (Opsional)    | OAuth 2.0, OpenID Connect, SAML 2.0, LDAP dengan fallback lokal             | Diperbarui         |
-| F-23   | Kelola Privacy & Consent (UU PDP)  | Consent management, DPO dashboard, hak subjek data, compliance report       | BARU               |
-| F-24   | Kelola Queue Jobs & Monitoring     | Dashboard queue Redis, worker management, retry, scaling                    | BARU               |
-| F-25   | Akses REST API Publik              | Endpoint API publik dengan rate limiting, API key, OpenAPI 3.0 spec         | BARU               |
-| F-26   | Kelola Container & CI/CD Pipeline  | Docker, GitHub Actions, deployment blue-green, health check                 | BARU               |
+| F-23   | Kelola Queue Jobs & Monitoring     | Dashboard queue Redis, worker management, retry, scaling                    | BARU               |
+| F-24   | Akses REST API Publik              | Endpoint API publik dengan rate limiting, API key, OpenAPI 3.0 spec         | BARU               |
+| F-25   | Kelola Container & CI/CD Pipeline  | Docker, GitHub Actions, deployment blue-green, health check                 | BARU               |
 
 ## **2.3 Karakteristik Pengguna**
 
@@ -156,8 +153,6 @@ Versi 2.0.0 menambahkan 4 fungsi baru (F-23 s.d. F-26) di samping 22 fungsi yang
 | Admin Instansi                | Menengah           | Konfigurasi survei, manajemen periode, pengelolaan kuesioner, QR Code, ekspor laporan, manajemen saran                      |
 | Operator Unit                 | Rendah-Menengah    | Input data survei manual, monitoring pengisian, cetak laporan unit sendiri, tanggapan saran unit                            |
 | Pimpinan / Viewer             | Rendah             | Hanya dapat melihat dashboard, grafik analitik, alert penurunan IKM, dan laporan (read-only)                                |
-| DPO (Data Protection Officer) | Tinggi             | Konfigurasi privacy policy, consent management, data retention, hak subjek data, compliance report \[BARU\]                 |
-| DevOps                        | Sangat Tinggi      | Docker/Kubernetes management, CI/CD pipeline, monitoring infrastruktur \[BARU\]                                             |
 | Masyarakat / Responden        | Rendah             | Mengisi kuesioner survei melalui halaman publik tanpa login; mengakses landing page dan dashboard publik                    |
 
 ## **2.4 Asumsi dan Ketergantungan**
@@ -200,10 +195,9 @@ Versi 2.0.0 menambahkan 4 fungsi baru (F-23 s.d. F-26) di samping 22 fungsi yang
 | UC-20  | Akses Dashboard Publik Transparansi        | Masyarakat (publik)                    |
 | UC-21  | Backup & Restore Database                  | Super Admin                            |
 | UC-22  | Konfigurasi SSO / LDAP                     | Super Admin                            |
-| UC-23  | Kelola Privacy & Consent (UU PDP) \[BARU\] | Super Admin, DPO                       |
-| UC-24  | Kelola Queue Jobs & Monitoring \[BARU\]    | Super Admin, DevOps                    |
-| UC-25  | Akses REST API Publik \[BARU\]             | Masyarakat / Third-party Applications  |
-| UC-26  | Kelola Container & CI/CD Pipeline \[BARU\] | Super Admin, DevOps                    |
+| UC-23  | Kelola Queue Jobs & Monitoring \[BARU\]    | Super Admin                            |
+| UC-24  | Akses REST API Publik \[BARU\]             | Masyarakat / Third-party Applications  |
+| UC-25  | Kelola Container & CI/CD Pipeline \[BARU\] | Super Admin                            |
 
 ## **3.2 Spesifikasi Use Case Detail**
 
@@ -260,32 +254,19 @@ Versi 2.0.0 menambahkan 4 fungsi baru (F-23 s.d. F-26) di samping 22 fungsi yang
 | **Jenis Notifikasi** | \- Periode akan berakhir dalam N hari - Target responden belum tercapai (< X%) - IKM turun di bawah threshold (terhubung UC-17) - Periode baru dibuat/diaktifkan - Backup database berhasil/gagal - Queue backlog melebihi threshold                                                                                                                                                                                                                              |
 | **Post-kondisi**     | Notifikasi tersimpan di tabel tb_notifikasi; email/WhatsApp terkirim melalui queue worker                                                                                                                                                                                                                                                                                                                                                                         |
 
-### **3.2.5 UC-23: Kelola Privacy & Consent (UU PDP) \[BARU\]**
-
-| **Atribut**          | **Deskripsi**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ID Use Case**      | UC-23                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| **Nama**             | Kelola Privacy & Consent (UU PDP)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Aktor Utama**      | Super Admin, DPO (Data Protection Officer)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| **Trigger**          | DPO/Super Admin membuka menu Sistem > Privacy & Consent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Pra-kondisi**      | Super Admin telah login; kebijakan privasi instansi telah disusun; DPO telah ditunjuk                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| **Alur Normal**      | 1\. DPO mengkonfigurasi kebijakan privasi: tujuan pengumpulan data, jenis data dikumpulkan, dasar hukum (consent/contract/legal obligation), retention period, pihak ketiga yang menerima data 2. DPO mengkonfigurasi consent form: bahasa, checkbox style (opt-in eksplisit), link ke kebijakan privasi lengkap 3. DPO mengatur data retention policy: auto-delete setelah X bulan, anonymization vs deletion 4. DPO mengatur hak subjek data: form permintaan akses data, form permintaan penghapusan (right to erasure), form permintaan koreksi data 5. Sistem menampilkan dashboard compliance: jumlah consent diberikan, permintaan hak subjek data, status penanganan 6. DPO dapat mengekspor laporan compliance untuk audit regulator |
-| **Bisnis Rule**      | BR-23-01: Consent harus opt-in eksplisit (tidak boleh pre-checked checkbox) BR-23-02: Responden dapat menarik consent kapan saja tanpa konsekuensi negatif BR-23-03: Data pribadi dihapus atau dianonimkan setelah retention period BR-23-04: Permintaan hak subjek data harus ditangani dalam 30 hari kerja BR-23-05: Breach notification ke regulator dalam 3x24 jam jika terjadi kebocoran data                                                                                                                                                                                                                                                                                                                                            |
-| **Kebutuhan Khusus** | Consent record disimpan terpisah dengan timestamp, IP, dan versi kebijakan; audit trail tidak dapat dihapus; enkripsi data pribadi at rest (AES-256-GCM); pseudonymization untuk analytics                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-
-### **3.2.6 UC-24: Kelola Queue Jobs & Monitoring \[BARU\]**
+### **3.2.5 UC-23: Kelola Queue Jobs & Monitoring \[BARU\]**
 
 | **Atribut**          | **Deskripsi**                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **ID Use Case**      | UC-24                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **ID Use Case**      | UC-23                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | **Nama**             | Kelola Queue Jobs & Monitoring                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Aktor Utama**      | Super Admin, DevOps                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Aktor Utama**      | Super Admin                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | **Trigger**          | Super Admin membuka menu Sistem > Queue Monitor                                                                                                                                                                                                                                                                                                                                                                                            |
 | **Alur Normal**      | 1\. Sistem menampilkan dashboard queue: jobs pending, processing, failed, completed 2. Sistem menampilkan worker status: active workers, uptime, memory usage, throughput 3. Super Admin dapat retry failed jobs (individual atau batch) 4. Super Admin dapat pause/resume queue 5. Super Admin dapat configure worker scaling (max concurrent jobs) 6. Alert otomatis jika queue backlog > threshold (misal: 1000 jobs pending > 5 menit) |
 | **Jenis Job Queue**  | \- ikm-calculation: Kalkulasi IKM per periode - notification: Email, WhatsApp, in-app - backup: Database backup (full, incremental) - report: PDF/Excel generation - export: Data export besar - cleanup: Data retention enforcement, log rotation                                                                                                                                                                                         |
 | **Kebutuhan Khusus** | Redis 7.x dengan persistence AOF; job idempotency key untuk mencegah duplikat; dead letter queue untuk job yang gagal > 5x retry; monitoring dengan Prometheus/Grafana metrics                                                                                                                                                                                                                                                             |
 
-### **3.2.7 UC-25: Akses REST API Publik \[BARU\]**
+### **3.2.6 UC-24: Akses REST API Publik \[BARU\]**
 
 | **Atribut**          | **Deskripsi**                                                                                                                                                                                                                                                                                                     |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -298,13 +279,13 @@ Versi 2.0.0 menambahkan 4 fungsi baru (F-23 s.d. F-26) di samping 22 fungsi yang
 | **Response Format**  | JSON dengan HTTP status codes; pagination dengan cursor-based; caching headers (ETag, Cache-Control)                                                                                                                                                                                                              |
 | **Kebutuhan Khusus** | CORS configured untuk domain instansi; JSON Schema validation; API versioning (v1, v2); OpenAPI 3.0 documentation; no sensitive data in error messages                                                                                                                                                            |
 
-### **3.2.8 UC-26: Kelola Container & CI/CD Pipeline \[BARU\]**
+### **3.2.7 UC-25: Kelola Container & CI/CD Pipeline \[BARU\]**
 
 | **Atribut**          | **Deskripsi**                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ID Use Case**      | UC-26                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **ID Use Case**      | UC-25                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | **Nama**             | Kelola Container & CI/CD Pipeline                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **Aktor Utama**      | Super Admin, DevOps                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Aktor Utama**      | Super Admin                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **Trigger**          | Push ke repository Git atau manual trigger                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **Alur Normal**      | 1\. Developer push code ke branch develop atau main 2. GitHub Actions/GitLab CI trigger: a. Run PHPUnit tests b. Run PHPStan static analysis c. Run OWASP dependency check d. Build Docker image (PHP 8.2-FPM + Nginx + CI4) e. Push image ke container registry 3. Deployment ke staging environment (automated) 4. UAT approval untuk production 5. Deployment ke production dengan blue-green atau rolling update 6. Health check dan rollback otomatis jika gagal |
 | **Docker Services**  | app: PHP 8.2-FPM + CI4 web: Nginx reverse proxy db: MySQL 8.0 / MariaDB 10.6 redis: Redis 7.x (cache, queue, session) queue-worker: CI4 queue worker (scalable replicas) scheduler: CI4 scheduler (cron alternative)                                                                                                                                                                                                                                                  |
@@ -337,7 +318,7 @@ Versi 2.0.0 menambahkan 4 fungsi baru (F-23 s.d. F-26) di samping 22 fungsi yang
 | NF-21  | Aksesibilitas     | WCAG               | Landing page dan halaman survei publik memenuhi standar WCAG 2.1 Level AA                                                            |
 | NF-22  | SEO               | Dashboard Publik   | Halaman dashboard publik dan landing page dapat diindeks mesin pencari (meta tags, JSON-LD structured data, sitemap.xml, robots.txt) |
 | NF-23  | Privasi           | UU PDP Compliance  | Consent management, data minimization, purpose limitation, storage limitation, integrity and confidentiality, accountability         |
-| NF-24  | DevOps            | CI/CD              | Deployment otomatis < 10 menit dari push ke production; rollback < 5 menit                                                           |
+| NF-24  | Keamanan          | CI/CD              | Deployment otomatis < 10 menit dari push ke production; rollback < 5 menit                                                           |
 | NF-25  | Monitoring        | Observability      | Metrics (Prometheus), logging (ELK/Loki), tracing (Jaeger/Zipkin) untuk seluruh komponen                                             |
 
 # **5\. ARSITEKTUR DAN DESAIN SISTEM v2.0.0**
@@ -410,7 +391,7 @@ S3-Compatible Storage (MinIO/AWS S3) - Backup, Uploads
 - Redis 7.x - cache, session, queue, rate limiting \[BARU\]
 - S3-compatible Storage - offsite backup, file uploads \[BARU\]
 
-### **5.2.4 Infrastructure & DevOps**
+### **5.2.4 Infrastructure & Container**
 
 - Docker & Docker Compose - development environment \[BARU\]
 - Kubernetes - production orchestration (opsional, recommended) \[BARU\]
@@ -538,7 +519,7 @@ Kalkulasi tetap mengacu sepenuhnya pada PermenPANRB Nomor 14 Tahun 2017.
 | Primary    | OAuth 2.0 / OpenID Connect | Login lokal  | Identity Provider instansi (Keycloak, Azure AD, Google Workspace) |
 | Secondary  | SAML 2.0                   | Login lokal  | Untuk instansi dengan infrastructure SAML                         |
 | Tertiary   | LDAP                       | Login lokal  | Legacy support                                                    |
-| Lokal      | Username + Password + MFA  | -            | Untuk emergency access, DPO, Super Admin wajib MFA                |
+| Lokal      | Username + Password + MFA  | -            | Untuk emergency access, Super Admin wajib MFA                |
 
 ## **8.2 Spesifikasi JWT (RS256)**
 
@@ -546,7 +527,7 @@ Header: alg=RS256, typ=JWT, kid=key-id-2026-01
 
 Payload: sub (user UUID), iss (instansi), aud (ikm-app), iat, exp (30 menit), scope, role, unit\[\]
 
-Refresh token rotation aktif; token blacklist di Redis; MFA wajib untuk Super Admin dan DPO.
+Refresh token rotation aktif; token blacklist di Redis; MFA wajib untuk Super Admin.
 
 ## **8.3 Content Security Policy (Ketat)**
 
@@ -570,9 +551,9 @@ default-src 'self'; script-src 'self' 'nonce-{random}' <https://cdn.jsdelivr.net
 | Data Minimization           | Hanya kumpulkan: nama (opsional), no telepon (opsional), email (opsional), usia range (opsional), gender (opsional) |
 | Purpose Limitation          | Data hanya untuk: kalkulasi IKM, tindak lanjut saran (jika identifikasi diizinkan), transparansi publik (anonim)    |
 | Storage Limitation          | Auto-delete setelah 2 tahun; anonymization untuk data historis                                                      |
-| Accuracy                    | Responden dapat meminta koreksi data via form DPO                                                                   |
+| Accuracy                    | Responden dapat meminta koreksi data via form kontak/admin                                                                   |
 | Integrity & Confidentiality | Enkripsi at rest, TLS 1.3 in transit, access log lengkap                                                            |
-| Accountability              | DPO dashboard, compliance report, audit trail WORM                                                                  |
+| Accountability              | Audit trail lengkap, compliance report, enkripsi data pribadi                                                                 |
 
 ## **9.2 Consent Flow**
 
@@ -711,7 +692,7 @@ CI4 Application → Redis Queue (notification-whatsapp) → Queue Worker (WhatsA
 | 14     | Pengembangan Backup/Restore Robust (XtraBackup, S3, Encrypt)          | 2 Minggu   | Hot backup, offsite storage, encryption, restore UI           |
 | 15     | Security Hardening: Penetration Test, OWASP ZAP, CSP                  | 1.5 Minggu | Security report, remediation, CSP deployment                  |
 | 16     | Performance Tuning: Load Test, Query Optimization, Cache              | 1.5 Minggu | JMeter report, Redis optimization, index tuning               |
-| 17     | UAT, Bug Fix, Documentation, Training                                 | 2.5 Minggu | Sign-off UAT, user manual, admin guide, DPO guide             |
+| 17     | UAT, Bug Fix, Documentation, Training                                 | 2.5 Minggu | Sign-off UAT, user manual, admin guide              |
 | 18     | Production Deployment with Blue-Green Strategy                        | 1 Minggu   | Live system, monitoring, rollback procedure                   |
 |        | TOTAL                                                                 | 33 Minggu  | Aplikasi IKM v2.0.0 siap produksi                             |
 
