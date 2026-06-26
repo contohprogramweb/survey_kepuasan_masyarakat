@@ -86,14 +86,14 @@ class PDP extends BaseConfig
      * Breach notification
      */
     public bool $breachNotificationEnabled = true;
-    public string $breachNotificationEmail = 'dpo@ikm.go.id';
+    public string $breachNotificationEmail = 'admin@ikm.go.id';
     public int $breachNotificationTimeout = 72; // hours (sesuai UU PDP)
 
     /**
-     * Data Protection Officer (DPO) contact
+     * Data Protection contact
      */
-    public string $dpoName = 'Data Protection Officer';
-    public string $dpoEmail = 'dpo@ikm.go.id';
+    public string $dpoName = 'Admin Perlindungan Data';
+    public string $dpoEmail = 'admin@ikm.go.id';
     public string $dpoPhone = '';
 
     /**
