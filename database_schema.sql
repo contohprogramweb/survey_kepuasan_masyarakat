@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255) NOT NULL,
-    role ENUM('super_admin', 'admin', 'operator', 'pimpinan', 'dpo', 'devops') NOT NULL DEFAULT 'operator',
+    role ENUM('super_admin', 'admin', 'operator', 'pimpinan') NOT NULL DEFAULT 'operator',
     status ENUM('active', 'inactive', 'suspended') NOT NULL DEFAULT 'active',
     mfa_enabled TINYINT(1) DEFAULT 0,
     mfa_secret VARCHAR(255) DEFAULT NULL,
