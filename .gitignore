@@ -1,58 +1,50 @@
-```markdown
-# Examples
+# Compiled and build artifacts
 *.pyc
 __pycache__/
 *.o
 *.obj
+*.class
 *.exe
 *.dll
 *.so
 *.a
 *.out
-*.swp
-*.swo
-*.tmp
-*.log
-*.env
-*.env.*
-node_modules/
-venv/
+
+# Dependencies
 .venv/
-.env
-.env.local
-.env.*
-.vscode/
-.idea/
+venv/
+node_modules/
 dist/
 build/
 target/
 .gradle/
-.mypy_cache/
-.pytest_cache/
-coverage/
-htmlcov/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# System files
 .DS_Store
 Thumbs.db
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
-```
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Cache directories
+.mypy_cache/
+.pytest_cache/
